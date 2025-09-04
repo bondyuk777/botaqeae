@@ -1,67 +1,81 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 const { Pool } = require("pg");
 
-const client = new Client({ 
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] 
-});
-
-const BOT_TOKEN = process.env.BOT_TOKEN;
-const DATABASE_URL = process.env.DATABASE_URL;
-
+// Подключаемся к базе PostgreSQL через переменную окружения
 const pool = new Pool({
-  connectionString: DATABASE_URL,
+  connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 
-// авто-создание таблицы
-(async () => {
+// Создаём таблицу, если её нет
+async function initDB() {
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS tokens (
-      user_id TEXT PRIMARY KEY,
-      token TEXT NOT NULL
+    CREATE TABLE IF NOT EXISTS my_table (
+      id SERIAL PRIMARY KEY,
+      user_id TEXT UNIQUE NOT NULL,
+      token TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
-})();
+  console.log("Database initialized.");
+}
 
-client.on("messageCreate", async (message) => {
-  if (!message.content.startsWith("!")) return;
+// Инициализируем Discord-бота
+const bot = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 
-  // только ты (админ) можешь работать с токенами
-  if (message.author.id !== "832278157066240040") {
-    return message.reply("❌ Ты не админ!");
-  }
+bot.once("ready", async () => {
+  console.log(`Logged in as ${bot.user.tag}!`);
+  await initDB();
+});
 
-  const args = message.content.split(" ");
+// Обработчик сообщений
+bot.on("messageCreate", async message => {
+  if (message.author.bot) return;
+
+  const args = message.content.trim().split(/\s+/);
   const command = args[0].toLowerCase();
 
-  // команда для добавления токена
+  // !settoken <токен>
   if (command === "!settoken") {
     const token = args[1];
-    if (!token) return message.reply("⚠️ Напиши токен после команды");
-
-    await pool.query(
-      "INSERT INTO tokens(user_id, token) VALUES($1, $2) ON CONFLICT (user_id) DO UPDATE SET token=$2",
-      [message.author.id, token]
-    );
-
-    return message.reply("✅ Токен сохранён!");
-  }
-
-  // команда для удаления токена
-  if (command === "!deltoken") {
-    await pool.query("DELETE FROM tokens WHERE user_id = $1", [message.author.id]);
-
-    return message.reply("🗑️ Токен удалён!");
-  }
-
-  // команда для просмотра сохранённого токена
-  if (command === "!mytoken") {
-    const res = await pool.query("SELECT token FROM tokens WHERE user_id = $1", [message.author.id]);
-    if (res.rows.length === 0) {
-      return message.reply("⚠️ У тебя нет сохранённого токена.");
+    if (!token) return message.reply("Please provide a token.");
+    try {
+      await pool.query(`
+        INSERT INTO my_table (user_id, token) 
+        VALUES ($1, $2)
+        ON CONFLICT (user_id) 
+        DO UPDATE SET token = EXCLUDED.token, created_at = CURRENT_TIMESTAMP
+      `, [message.author.id, token]);
+      message.reply("Token saved successfully!");
+    } catch (err) {
+      console.error(err);
+      message.reply("Error saving token.");
     }
-    return message.reply(`🔑 Твой токен: \`${res.rows[0].token}\``);
+  }
+
+  // !deltoken
+  else if (command === "!deltoken") {
+    try {
+      await pool.query(`DELETE FROM my_table WHERE user_id = $1`, [message.author.id]);
+      message.reply("Token deleted successfully!");
+    } catch (err) {
+      console.error(err);
+      message.reply("Error deleting token.");
+    }
+  }
+
+  // !mytoken
+  else if (command === "!mytoken") {
+    try {
+      const res = await pool.query(`SELECT token FROM my_table WHERE user_id = $1`, [message.author.id]);
+      if (res.rows.length === 0) return message.reply("You don't have a token saved.");
+      message.reply(`Your token: ${res.rows[0].token}`);
+    } catch (err) {
+      console.error(err);
+      message.reply("Error fetching token.");
+    }
   }
 });
 
-client.login(BOT_TOKEN);
+// Запуск бота
+bot.login(process.env.BOT_TOKEN);
