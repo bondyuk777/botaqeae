@@ -1,119 +1,234 @@
-const { Client, GatewayIntentBits, EmbedBuilder } = require("discord.js");
-const { Pool } = require("pg");
+import os
+import re
+import logging
+import socket
+import struct
+from telegram import Update
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from dotenv import load_dotenv
 
-// ---------- ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ ----------
-const BOT_TOKEN = process.env.BOT_TOKEN;
-const DATABASE_URL = process.env.DATABASE_URL;
-const ADMIN_ID = process.env.ADMIN_ID; // твой Discord ID (админ)
+# Настройка логирования
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO,
+    handlers=[
+        logging.FileHandler('server_bot.log', encoding='utf-8'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
-// ---------- ПОДКЛЮЧЕНИЕ К БАЗЕ ----------
-const pool = new Pool({
-  connectionString: DATABASE_URL,
-  ssl: { rejectUnauthorized: false } // обязательно для Railway
-});
+load_dotenv()
+TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+CHANNEL_ID = os.getenv('TELEGRAM_CHANNEL_ID')
+SERVER_IP = 'Ваш ип' #Сюда вписать ип адрес пример: 00.00.00.00
+SERVER_PORT = 27015 #Сюда вписать ваш порт, пример 27015
+UPDATE_INTERVAL = 3000 #интервал автоотправки сообщения в ваш канал
 
-// ---------- ИНИЦИАЛИЗАЦИЯ ТАБЛИЦЫ ----------
-async function initDB() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS my_table (
-      id SERIAL PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      token TEXT NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+class SourceServerQuery:
+    last_response = None
+    ENCODINGS = ['utf-8', 'cp1251', 'iso-8859-5', 'cp866', 'koi8-r', 'latin1']
+    HEADER = b'\xFF\xFF\xFF\xFF'
+
+    @staticmethod
+    def remove_color_codes(name):
+        return re.sub(r'\^\d', '', name).strip() if name else ''
+
+    @staticmethod
+    def decode_string(data):
+        end = data.find(b'\x00')
+        if end == -1:
+            return "", data
+        raw_bytes = data[:end]
+        remaining = data[end+1:]
+        for encoding in SourceServerQuery.ENCODINGS:
+            try:
+                decoded = raw_bytes.decode(encoding, errors='strict').strip()
+                return decoded, remaining
+            except UnicodeDecodeError:
+                continue
+        return raw_bytes.decode('utf-8', errors='replace').strip(), remaining
+
+    @staticmethod
+    def get_info():
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                sock.settimeout(5)
+                payload = SourceServerQuery.HEADER + b'T' + b'Source Engine Query\x00'
+                sock.sendto(payload, (SERVER_IP, SERVER_PORT))
+                data = sock.recv(4096)
+
+                if data[4] == 0x41:
+                    challenge = struct.unpack('<l', data[5:9])[0]
+                    payload = SourceServerQuery.HEADER + b'T' + b'Source Engine Query\x00' + struct.pack('<l', challenge)
+                    sock.sendto(payload, (SERVER_IP, SERVER_PORT))
+                    data = sock.recv(4096)
+
+                if data[4] != 0x49:
+                    return None
+
+                data = data[6:]
+                info = {}
+                info['name'], data = SourceServerQuery.decode_string(data)
+                info['map'], data = SourceServerQuery.decode_string(data)
+                data = data[16:]
+                info['version'], data = SourceServerQuery.decode_string(data)
+                
+                return {
+                    'name': SourceServerQuery.remove_color_codes(info['name']),
+                    'map': SourceServerQuery.remove_color_codes(info['map']),
+                    'players': data[0] if len(data) >= 2 else 0,
+                    'max_players': data[1] if len(data) >= 2 else 0
+                }
+
+        except Exception as e:
+            logger.error(f"Ошибка запроса информации: {str(e)}")
+            return None
+
+    @staticmethod
+    def get_players():
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                sock.settimeout(5)
+                payload = SourceServerQuery.HEADER + b'U' + b'\xFF\xFF\xFF\xFF'
+                sock.sendto(payload, (SERVER_IP, SERVER_PORT))
+                data = sock.recv(4096)
+
+                if data[4] == 0x41:
+                    challenge = struct.unpack('<l', data[5:9])[0]
+                    payload = SourceServerQuery.HEADER + b'U' + struct.pack('<l', challenge)
+                    sock.sendto(payload, (SERVER_IP, SERVER_PORT))
+                    data = sock.recv(4096)
+
+                if data[4] != 0x44:
+                    return None
+
+                players = []
+                player_count = data[5]
+                data = data[6:]
+
+                for _ in range(player_count):
+                    try:
+                        data = data[1:]
+                        name, data = SourceServerQuery.decode_string(data)
+                        data = data[8:]
+                        clean_name = SourceServerQuery.remove_color_codes(name)
+                        if clean_name and clean_name != '.':
+                            players.append(clean_name)
+                    except Exception as e:
+                        logger.error(f"Ошибка парсинга игрока: {str(e)}")
+                        continue
+
+                return players
+
+        except Exception as e:
+            logger.error(f"Ошибка запроса игроков: {str(e)}")
+            return None
+
+def generate_message(check_changes=True):
+    try:
+        current_data = (SourceServerQuery.get_info(), SourceServerQuery.get_players())
+        
+        if check_changes and current_data == SourceServerQuery.last_response:
+            return None
+
+        SourceServerQuery.last_response = current_data
+        info, players = current_data
+
+        if not info or not players:
+            return "❌ Сервер не отвечает"
+
+        message = [
+            f"🔹 <b>{info['name']}</b>",
+            f"🗺 Карта: <code>{info['map']}</code>",
+            f"👥 Онлайн: <b>{len(players)}/32</b>",
+            "\n📊 Игроки:"
+        ]
+
+        if players:
+            message += [f"👤 {name}" for name in players]
+        else:
+            message.append("Сейчас никто не играет")
+
+        return "\n".join(message)
+
+    except Exception as e:
+        logger.error(f"Ошибка генерации сообщения: {str(e)}")
+        return "⚠️ Ошибка получения данных"
+
+def send_update(context: CallbackContext):
+    try:
+        message = generate_message(check_changes=True)
+        if message:
+            context.bot.send_message(
+                chat_id=CHANNEL_ID,
+                text=message,
+                parse_mode='HTML'
+            )
+    except Exception as e:
+        logger.error(f"Ошибка отправки: {str(e)}")
+
+def handle_server_cmd(update: Update, context: CallbackContext):
+    try:
+        info = SourceServerQuery.get_info()
+        players = SourceServerQuery.get_players()
+        
+        if not info or not players:
+            update.message.reply_text("❌ Сервер не отвечает", parse_mode='HTML')
+            return
+
+        message = [
+            f"🔹 <b>{info['name']}</b>",
+            f"🗺 Карта: <code>{info['map']}</code>",
+            f"👥 Онлайн: <b>{len(players)}/32</b>",
+            "\n📊 Игроки:"
+        ]
+
+        if players:
+            message += [f"👤 {name}" for name in players]
+        else:
+            message.append("Сейчас никто не играет")
+
+        update.message.reply_text(
+            text="\n".join(message),
+            parse_mode='HTML'
+        )
+
+    except Exception as e:
+        logger.error(f"Ошибка команды: {str(e)}")
+        update.message.reply_text("⚠️ Ошибка при получении данных", parse_mode='HTML')
+
+def start(update: Update, context: CallbackContext):
+    update.message.reply_text(
+        "🤖 Бот мониторинга игрового сервера\n"
+        "Используйте команду !сервер для проверки текущего статуса",
+        parse_mode='HTML'
     )
-  `);
-  console.log("Database initialized.");
-}
 
-// ---------- ИНИЦИАЛИЗАЦИЯ БОТА ----------
-const bot = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
+def main():
+    try:
+        updater = Updater(TOKEN, use_context=True)
+        dp = updater.dispatcher
 
-bot.once("ready", async () => { // можно оставить ready, но предупреждение есть
-  console.log(`Logged in as ${bot.user.tag}!`);
-  await initDB();
-});
+        dp.add_handler(CommandHandler("start", start))
+        dp.add_handler(MessageHandler(
+            Filters.text & ~Filters.command & Filters.regex(r'^!сервер'),
+            handle_server_cmd
+        ))
 
-// ---------- ФУНКЦИЯ ДЛЯ EMBED ----------
-function createEmbed(title, description, color = 0x00ff00) {
-  return new EmbedBuilder()
-    .setTitle(title)
-    .setDescription(description)
-    .setColor(color)
-    .setTimestamp();
-}
+        updater.job_queue.run_repeating(
+            send_update,
+            interval=UPDATE_INTERVAL,
+            first=0
+        )
 
-// ---------- ОБРАБОТКА СООБЩЕНИЙ ----------
-bot.on("messageCreate", async message => {
-  if (message.author.bot) return;
+        logger.info("Бот успешно запущен")
+        updater.start_polling()
+        updater.idle()
 
-  const args = message.content.trim().split(/\s+/);
-  const command = args[0].toLowerCase();
+    except Exception as e:
+        logger.critical(f"Критическая ошибка: {str(e)}")
+        raise
 
-  // ---------- ПРОВЕРКА АДМИНА ----------
-  if (message.author.id !== ADMIN_ID) {
-    return message.reply({ embeds: [createEmbed("Ошибка", "You are not admin!", 0xff0000)] });
-  }
-
-  // ---------- !settoken <токен> ----------
-  if (command === "!settoken") {
-    const token = args[1];
-    if (!token) return message.reply({ embeds: [createEmbed("Ошибка", "Please provide a token.", 0xff0000)] });
-    try {
-      await pool.query(`
-        INSERT INTO my_table (user_id, token) 
-        VALUES ($1, $2)
-        ON CONFLICT (user_id, token) 
-        DO NOTHING
-      `, [message.author.id, token]);
-      return message.reply({ embeds: [createEmbed("Успех", "Token saved successfully!")] });
-    } catch (err) {
-      console.error(err);
-      return message.reply({ embeds: [createEmbed("Ошибка", "Error saving token.", 0xff0000)] });
-    }
-  }
-
-  // ---------- !deltoken <токен> ----------
-  else if (command === "!deltoken") {
-    const tokenToDelete = args[1];
-    if (!tokenToDelete) return message.reply({ embeds: [createEmbed("Ошибка", "Please provide the token to delete.", 0xff0000)] });
-    try {
-      const res = await pool.query(
-        `DELETE FROM my_table WHERE user_id = $1 AND token = $2 RETURNING *`,
-        [message.author.id, tokenToDelete]
-      );
-      if (res.rowCount === 0) return message.reply({ embeds: [createEmbed("Ошибка", "Token not found or does not belong to you.", 0xff0000)] });
-      return message.reply({ embeds: [createEmbed("Успех", "Token deleted successfully!")] });
-    } catch (err) {
-      console.error(err);
-      return message.reply({ embeds: [createEmbed("Ошибка", "Error deleting token.", 0xff0000)] });
-    }
-  }
-
-  // ---------- !mytoken ----------
-  else if (command === "!mytoken") {
-    try {
-      const res = await pool.query(`SELECT token FROM my_table WHERE user_id = $1`, [message.author.id]);
-      if (res.rows.length === 0) return message.reply({ embeds: [createEmbed("Информация", "You don't have a token saved.", 0xffff00)] });
-      const tokens = res.rows.map(r => r.token).join("\n");
-      return message.reply({ embeds: [createEmbed("Твои токены", tokens)] });
-    } catch (err) {
-      console.error(err);
-      return message.reply({ embeds: [createEmbed("Ошибка", "Error fetching token.", 0xff0000)] });
-    }
-  }
-
-  // ---------- !deltokenall ----------
-  else if (command === "!deltokenall") {
-    try {
-      await pool.query(`DELETE FROM my_table`);
-      return message.reply({ embeds: [createEmbed("Успех", "All tokens deleted successfully!")] });
-    } catch (err) {
-      console.error(err);
-      return message.reply({ embeds: [createEmbed("Ошибка", "Error deleting all tokens.", 0xff0000)] });
-    }
-  }
-});
-
-// ---------- ЗАПУСК БОТА ----------
-bot.login(BOT_TOKEN);
-
+if __name__ == '__main__':
+    main()
