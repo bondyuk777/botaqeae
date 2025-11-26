@@ -30,7 +30,8 @@ const PLAYER_SPEED = 260;
 const ATTACK_RANGE = 80;
 const ATTACK_COOLDOWN = 400; // мс
 
-const ALLOWED_SKINS = ["default", "red", "blue", "green"];
+const ALLOWED_SKINS = ["body42", "body85", "body11", "body12", "body13"];
+const DEFAULT_SKIN = "body42";
 
 let nextPlayerId = 1;
 let nextResourceId = 1;
@@ -159,7 +160,7 @@ wss.on("connection", (ws) => {
         color: "#" + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, "0"),
         chatText: "",
         chatUntil: 0,
-        skin: "default"
+        skin: DEFAULT_SKIN
     };
 
     players.set(id, player);
@@ -376,14 +377,14 @@ function respawnPlayer(p) {
 // профиль: ник + скин
 function handleProfile(p, data) {
     let name = (data.name || "").toString().trim().slice(0, 16);
-    let skin = (data.skin || "default").toString();
+    let skin = (data.skin || DEFAULT_SKIN).toString();
 
     if (name) {
         p.name = name;
     }
 
     if (!ALLOWED_SKINS.includes(skin)) {
-        skin = "default";
+        skin = DEFAULT_SKIN;
     }
     p.skin = skin;
 }
@@ -484,7 +485,7 @@ setInterval(() => {
             chatText: p.chatText || "",
             inventory: p.inventory,
             weapon: p.weapon,
-            skin: p.skin
+            skin: p.skin || DEFAULT_SKIN
         });
     }
 
