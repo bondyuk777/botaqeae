@@ -11,10 +11,11 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
-const PORT = 3000;
+// ВАЖНО для Render: он задаёт PORT через переменную окружения
+const PORT = process.env.PORT || 3000;
 
-// если хочешь раздавать статику (твой рендер в /public)
-app.use(express.static(path.join(__dirname, "public")));
+// Раздаём всё из ТЕКУЩЕЙ папки (index.html, client.js и т.п.)
+app.use(express.static(__dirname));
 
 // ====== ЛОГИКА ИГРЫ ======
 
@@ -25,8 +26,7 @@ const SPEED = 220;
 const TICK_RATE = 60;
 const TICK_INTERVAL = 1000 / TICK_RATE;
 
-// структура игрока:
-// { id, x, y, vx, vy, name, color }
+// структура игрока: { id, x, y, vx, vy, name, color }
 
 wss.on("connection", (ws) => {
     const id = nextPlayerId++;
@@ -49,7 +49,7 @@ wss.on("connection", (ws) => {
     players.set(id, player);
     console.log(`Player ${id} connected`);
 
-    // шлём ему его id
+    // отправляем игроку его id
     ws.send(JSON.stringify({ type: "init", id }));
 
     ws.on("message", (raw) => {
@@ -88,7 +88,7 @@ wss.on("connection", (ws) => {
     });
 });
 
-// игровой цикл
+// игровой цикл сервера
 let lastTime = Date.now();
 
 setInterval(() => {
@@ -96,14 +96,14 @@ setInterval(() => {
     const dt = (now - lastTime) / 1000;
     lastTime = now;
 
-    // апдейт мира
+    // обновляем позиции
     for (const p of players.values()) {
         p.x += p.vx * dt;
         p.y += p.vy * dt;
-        // тут можешь добавить коллизии/границы карты
+        // здесь можно добавить коллизии/границы карты
     }
 
-    // отправка состояния всем
+    // рассылаем состояние всем
     const snapshot = {
         type: "state",
         players: Array.from(players.values()),
