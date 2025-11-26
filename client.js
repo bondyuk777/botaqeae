@@ -1,7 +1,17 @@
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const info = document.getElementById("info");
+const chatBox = document.getElementById("chat-box");
 const chatInput = document.getElementById("chat-input");
+
+// ====== ФУЛЛСКРИН КАНВАС ======
+
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
 
 // ====== СЕТЬ ======
 
@@ -19,7 +29,7 @@ function connect() {
 
     socket.addEventListener("open", () => {
         console.log("[NET] connected");
-        info.textContent = "Подключено. WASD / стрелки для движения, чат внизу";
+        info.textContent = "Подключено. WASD/стрелки — движение, Enter — чат";
     });
 
     socket.addEventListener("message", (event) => {
@@ -54,35 +64,9 @@ function sendInput() {
     }));
 }
 
-// ====== УПРАВЛЕНИЕ ДВИЖЕНИЕМ ======
+// ====== ЧАТ ======
 
-window.addEventListener("keydown", (e) => {
-    // если фокус в чате – не двигаем
-    if (document.activeElement === chatInput) return;
-
-    let changed = false;
-    if (e.code === "KeyW" || e.code === "ArrowUp")  { if (!keys.up)    { keys.up = true; changed = true; } }
-    if (e.code === "KeyS" || e.code === "ArrowDown"){ if (!keys.down)  { keys.down = true; changed = true; } }
-    if (e.code === "KeyA" || e.code === "ArrowLeft"){ if (!keys.left)  { keys.left = true; changed = true; } }
-    if (e.code === "KeyD" || e.code === "ArrowRight"){ if (!keys.right){ keys.right = true; changed = true; } }
-
-    if (changed) sendInput();
-});
-
-window.addEventListener("keyup", (e) => {
-    // если фокус в чате – не трогаем
-    if (document.activeElement === chatInput) return;
-
-    let changed = false;
-    if (e.code === "KeyW" || e.code === "ArrowUp")  { if (keys.up)    { keys.up = false; changed = true; } }
-    if (e.code === "KeyS" || e.code === "ArrowDown"){ if (keys.down)  { keys.down = false; changed = true; } }
-    if (e.code === "KeyA" || e.code === "ArrowLeft"){ if (keys.left)  { keys.left = false; changed = true; } }
-    if (e.code === "KeyD" || e.code === "ArrowRight"){ if (keys.right){ keys.right = false; changed = true; } }
-
-    if (changed) sendInput();
-});
-
-// ====== ОТПРАВКА ЧАТА ======
+let chatActive = false;
 
 function sendChatMessage(text) {
     if (!socket || socket.readyState !== WebSocket.OPEN) return;
@@ -95,21 +79,108 @@ function sendChatMessage(text) {
     }));
 }
 
-// Enter в инпуте чата отправляет сообщение
-chatInput.addEventListener("keydown", (e) => {
+// открыть чат: Enter (когда чат закрыт)
+// написать текст
+// Enter — отправить и закрыть
+// Esc — закрыть без отправки
+
+window.addEventListener("keydown", (e) => {
+    // если чат активен и фокус в инпуте — обрабатываем чат
+    if (chatActive && document.activeElement === chatInput) {
+        if (e.key === "Enter") {
+            const text = chatInput.value;
+            chatInput.value = "";
+            sendChatMessage(text);
+
+            chatActive = false;
+            chatBox.style.display = "none";
+            chatInput.blur();
+
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+        }
+        if (e.key === "Escape") {
+            chatInput.value = "";
+            chatActive = false;
+            chatBox.style.display = "none";
+            chatInput.blur();
+
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+        }
+        // остальные клавиши — просто печатаем текст
+        return;
+    }
+
+    // если чат НЕ активен
     if (e.key === "Enter") {
-        const text = chatInput.value;
+        // открыть чат
+        chatActive = true;
+        chatBox.style.display = "block";
         chatInput.value = "";
-        sendChatMessage(text);
+        chatInput.focus();
+
         e.preventDefault();
         e.stopPropagation();
+        return;
+    }
+
+    // ====== УПРАВЛЕНИЕ ДВИЖЕНИЕМ (когда чат закрыт) ======
+    let changed = false;
+
+    if (e.code === "KeyW" || e.code === "ArrowUp") {
+        if (!keys.up) { keys.up = true; changed = true; }
+    }
+    if (e.code === "KeyS" || e.code === "ArrowDown") {
+        if (!keys.down) { keys.down = true; changed = true; }
+    }
+    if (e.code === "KeyA" || e.code === "ArrowLeft") {
+        if (!keys.left) { keys.left = true; changed = true; }
+    }
+    if (e.code === "KeyD" || e.code === "ArrowRight") {
+        if (!keys.right) { keys.right = true; changed = true; }
+    }
+
+    if (changed) {
+        sendInput();
+        // чтобы страница не скроллилась стрелками
+        e.preventDefault();
     }
 });
 
-// по клику на игру убираем фокус с чата (чтобы снова двигаться)
+window.addEventListener("keyup", (e) => {
+    // если чат активен – не трогаем движение
+    if (chatActive && document.activeElement === chatInput) return;
+
+    let changed = false;
+
+    if (e.code === "KeyW" || e.code === "ArrowUp") {
+        if (keys.up) { keys.up = false; changed = true; }
+    }
+    if (e.code === "KeyS" || e.code === "ArrowDown") {
+        if (keys.down) { keys.down = false; changed = true; }
+    }
+    if (e.code === "KeyA" || e.code === "ArrowLeft") {
+        if (keys.left) { keys.left = false; changed = true; }
+    }
+    if (e.code === "KeyD" || e.code === "ArrowRight") {
+        if (keys.right) { keys.right = false; changed = true; }
+    }
+
+    if (changed) {
+        sendInput();
+        e.preventDefault();
+    }
+});
+
+// клик по канвасу — убрать фокус с чата, если что
 canvas.addEventListener("mousedown", () => {
-    canvas.focus?.();
-    window.focus();
+    if (!chatActive) {
+        chatInput.blur();
+        window.focus();
+    }
 });
 
 // ====== РЕНДЕР ======
