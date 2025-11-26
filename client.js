@@ -41,33 +41,42 @@ let cameraY = 0;
 const protocol = (location.protocol === "https:") ? "wss" : "ws";
 const WS_URL = `${protocol}://${location.host}`;
 
-let selectedSkin = "default";
+const DEFAULT_SKIN = "body42";
+let selectedSkin = DEFAULT_SKIN;
 let profileToSend = null;
 
-// ====== СТИЛИ СКИНОВ (для отрисовки человечка) ======
+// для поворота
+let mouseWorldX = 0;
+let mouseWorldY = 0;
+const prevPositions = {};
+
+// ====== СТИЛИ СКИНОВ (fallback, если картинка не загрузится) ======
 
 const SKIN_STYLES = {
-    default: {
-        body: "#7f8c8d",
-        head: "#f1c40f",
-        outline: "#2c3e50"
-    },
-    red: {
-        body: "#e74c3c",
-        head: "#f1c40f",
-        outline: "#c0392b"
-    },
-    blue: {
-        body: "#3498db",
-        head: "#f1c40f",
-        outline: "#2980b9"
-    },
-    green: {
-        body: "#2ecc71",
-        head: "#f1c40f",
-        outline: "#27ae60"
-    }
+    body42: { body: "#7f8c8d", head: "#f1c40f", outline: "#2c3e50" },
+    body85: { body: "#e74c3c", head: "#f1c40f", outline: "#c0392b" },
+    body11: { body: "#3498db", head: "#f1c40f", outline: "#2980b9" },
+    body12: { body: "#2ecc71", head: "#f1c40f", outline: "#27ae60" },
+    body13: { body: "#9b59b6", head: "#f1c40f", outline: "#8e44ad" }
 };
+
+// ====== КАРТИНКИ СКИНОВ (Sploop) ======
+
+const SKIN_SOURCES = {
+    body42: "https://sploop.io/img/skins/body42.png",
+    body85: "https://sploop.io/img/skins/body85.png",
+    body11: "https://sploop.io/img/skins/body11.png",
+    body12: "https://sploop.io/img/skins/body12.png",
+    body13: "https://sploop.io/img/skins/body13.png"
+};
+
+const skinImages = {};
+
+for (const [key, src] of Object.entries(SKIN_SOURCES)) {
+    const img = new Image();
+    img.src = src; // грузим с удалённого сайта
+    skinImages[key] = img;
+}
 
 // ====== МЕНЮ: ВЫБОР СКИНА И СТАРТ ======
 
@@ -75,7 +84,7 @@ skinOptions.forEach(opt => {
     opt.addEventListener("click", () => {
         skinOptions.forEach(o => o.classList.remove("selected"));
         opt.classList.add("selected");
-        selectedSkin = opt.dataset.skin || "default";
+        selectedSkin = opt.dataset.skin || DEFAULT_SKIN;
     });
 });
 
@@ -287,7 +296,7 @@ window.addEventListener("keyup", (e) => {
     }
 });
 
-// ====== МЫШЬ: АТАКА + СТРОЙКА ======
+// ====== МЫШЬ: АТАКА + СТРОЙКА + ОБНОВЛЕНИЕ КУРСОРА ======
 
 function screenToWorld(sx, sy) {
     const rect = canvas.getBoundingClientRect();
@@ -298,6 +307,12 @@ function screenToWorld(sx, sy) {
         y: cameraY + y
     };
 }
+
+canvas.addEventListener("mousemove", (e) => {
+    const pos = screenToWorld(e.clientX, e.clientY);
+    mouseWorldX = pos.x;
+    mouseWorldY = pos.y;
+});
 
 canvas.addEventListener("mousedown", (e) => {
     if (inMenu) return;
@@ -344,48 +359,63 @@ function drawGrid(camX, camY) {
     for (let y = startY; y < canvas.height; y += gridSize) {
         ctx.beginPath();
         ctx.moveTo(0, y);
-        ctx.lineTo(canvas.width, y);
+        ctx.lineTo(0, y);
         ctx.stroke();
     }
 }
 
-function drawHuman(p, sx, sy, isMe) {
-    const style = SKIN_STYLES[p.skin] || SKIN_STYLES.default;
+// аккуратный человечек/скин с поворотом
+function drawHuman(p, sx, sy, isMe, angleRad) {
+    const skinKey = p.skin || DEFAULT_SKIN;
+    const img = skinImages[skinKey];
+    const style = SKIN_STYLES[skinKey] || SKIN_STYLES[DEFAULT_SKIN];
 
-    // кольцо под своим персонажем
+    const size = 64;
+
+    // кольцо под своим персонажем (не вращается)
     if (isMe) {
         ctx.beginPath();
-        ctx.arc(sx, sy + 18, 16, 0, Math.PI * 2);
+        ctx.arc(sx, sy + size / 2, size * 0.5, 0, Math.PI * 2);
         ctx.strokeStyle = "rgba(255,255,255,0.8)";
         ctx.lineWidth = 2;
         ctx.stroke();
     }
 
-    // тело
-    ctx.fillStyle = style.body;
-    ctx.fillRect(sx - 12, sy - 6, 24, 26);
+    ctx.save();
+    ctx.translate(sx, sy);
 
-    // голова
-    ctx.beginPath();
-    ctx.arc(sx, sy - 18, 10, 0, Math.PI * 2);
-    ctx.fillStyle = style.head;
-    ctx.fill();
+    // спрайт из Sploop смотрит вверх, а угол Math.atan2 считает 0 вправо
+    // поэтому поворачиваем на angleRad - PI/2
+    const drawAngle = angleRad - Math.PI / 2;
+    ctx.rotate(drawAngle);
 
-    // шлем/контур
-    ctx.beginPath();
-    ctx.arc(sx, sy - 18, 11, 0, Math.PI * 2);
-    ctx.strokeStyle = style.outline;
-    ctx.lineWidth = 2;
-    ctx.stroke();
+    if (img && img.complete) {
+        ctx.drawImage(img, -size / 2, -size / 2, size, size);
+    } else {
+        // fallback — рисованный человечек
+        ctx.fillStyle = style.body;
+        ctx.fillRect(-12, -6, 24, 26);
 
-    // руки
-    ctx.fillStyle = style.body;
-    ctx.fillRect(sx - 18, sy - 4, 6, 18);
-    ctx.fillRect(sx + 12, sy - 4, 6, 18);
+        ctx.beginPath();
+        ctx.arc(0, -18, 10, 0, Math.PI * 2);
+        ctx.fillStyle = style.head;
+        ctx.fill();
 
-    // ноги
-    ctx.fillRect(sx - 10, sy + 20, 8, 14);
-    ctx.fillRect(sx + 2, sy + 20, 8, 14);
+        ctx.beginPath();
+        ctx.arc(0, -18, 11, 0, Math.PI * 2);
+        ctx.strokeStyle = style.outline;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = style.body;
+        ctx.fillRect(-18, -4, 6, 18);
+        ctx.fillRect(12, -4, 6, 18);
+
+        ctx.fillRect(-10, 20, 8, 14);
+        ctx.fillRect(2, 20, 8, 14);
+    }
+
+    ctx.restore();
 }
 
 function render() {
@@ -458,7 +488,7 @@ function render() {
         ctx.fillRect(sx - barW / 2, sy - 28, barW * hpRatio, barH);
     }
 
-    // игроки (человечки)
+    // игроки (скины, повернутые)
     for (const p of players) {
         const sx = p.x - cameraX;
         const sy = p.y - cameraY;
@@ -466,7 +496,27 @@ function render() {
 
         const isMe = p.id === myId;
 
-        drawHuman(p, sx, sy, isMe);
+        // угол поворота
+        let angle = 0;
+
+        if (isMe) {
+            // смотрим на курсор мыши
+            const dx = mouseWorldX - p.x;
+            const dy = mouseWorldY - p.y;
+            angle = Math.atan2(dy, dx);
+        } else {
+            // для чужих ориентируем по направлению движения (по позиции между кадрами)
+            const prev = prevPositions[p.id];
+            if (prev) {
+                const dx = p.x - prev.x;
+                const dy = p.y - prev.y;
+                if (dx !== 0 || dy !== 0) {
+                    angle = Math.atan2(dy, dx);
+                }
+            }
+        }
+
+        drawHuman(p, sx, sy, isMe, angle);
 
         // чат над головой
         if (p.chatText) {
@@ -505,6 +555,9 @@ function render() {
         ctx.textAlign = "center";
         ctx.fillStyle = "#fff";
         ctx.fillText(p.name, sx, sy - 22);
+
+        // сохраняем позицию для следующего кадра (для направления чужих)
+        prevPositions[p.id] = { x: p.x, y: p.y };
     }
 
     // ====== HUD ======
