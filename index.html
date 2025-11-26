@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Онлайн игра</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #111;
+      color: #fff;
+      font-family: sans-serif;
+    }
+    #game {
+      display: block;
+      background: #222;
+    }
+    #info {
+      position: fixed;
+      left: 10px;
+      top: 10px;
+      background: rgba(0,0,0,0.5);
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="800" height="600"></canvas>
+  <div id="info">Подключаюсь к серверу...</div>
+
+  <!-- ВАЖНО: client.js лежит тут же, в этой же папке -->
+  <script type="module" src="./client.js"></script>
+</body>
+</html>
