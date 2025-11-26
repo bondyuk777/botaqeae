@@ -62,7 +62,7 @@
       background: rgba(0,0,0,0.8);
       border-radius: 12px;
       padding: 20px 24px;
-      width: 340px;
+      width: 360px;
       box-shadow: 0 0 30px rgba(0,0,0,0.8);
     }
     .menu-title {
@@ -111,12 +111,13 @@
     }
     .skins-row {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       margin-top: 6px;
       justify-content: space-between;
+      flex-wrap: wrap;
     }
     .skin-option {
-      flex: 1;
+      flex: 1 1 30%;
       padding: 6px 4px;
       border-radius: 6px;
       border: 1px solid #555;
@@ -176,16 +177,17 @@
 
       <div class="menu-label">Скин</div>
       <div class="skins-row">
-        <div class="skin-option selected" data-skin="default">Default</div>
-        <div class="skin-option" data-skin="red">Warrior</div>
-        <div class="skin-option" data-skin="blue">Knight</div>
-        <div class="skin-option" data-skin="green">Hunter</div>
+        <div class="skin-option selected" data-skin="body42">Skin 1</div>
+        <div class="skin-option" data-skin="body85">Skin 2</div>
+        <div class="skin-option" data-skin="body11">Skin 3</div>
+        <div class="skin-option" data-skin="body12">Skin 4</div>
+        <div class="skin-option" data-skin="body13">Skin 5</div>
       </div>
 
       <button id="play-btn">Играть</button>
 
       <div class="menu-hint">
-        После входа: WASD/стрелки — движение, Enter — чат
+        После входа: WASD/стрелки — движение, Enter — чат, ЛКМ — удар, ПКМ — стена
       </div>
     </div>
   </div>
