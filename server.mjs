@@ -30,6 +30,8 @@ const PLAYER_SPEED = 260;
 const ATTACK_RANGE = 80;
 const ATTACK_COOLDOWN = 400; // мс
 
+const ALLOWED_SKINS = ["default", "red", "blue", "green"];
+
 let nextPlayerId = 1;
 let nextResourceId = 1;
 let nextMobId = 1;
@@ -156,7 +158,8 @@ wss.on("connection", (ws) => {
         name: "Player " + id,
         color: "#" + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, "0"),
         chatText: "",
-        chatUntil: 0
+        chatUntil: 0,
+        skin: "default"
     };
 
     players.set(id, player);
@@ -187,6 +190,8 @@ wss.on("connection", (ws) => {
             handleBuild(p, data);
         } else if (data.type === "craft") {
             handleCraft(p, data.recipe);
+        } else if (data.type === "profile") {
+            handleProfile(p, data);
         }
     });
 
@@ -368,6 +373,21 @@ function respawnPlayer(p) {
     p.weapon = "fist";
 }
 
+// профиль: ник + скин
+function handleProfile(p, data) {
+    let name = (data.name || "").toString().trim().slice(0, 16);
+    let skin = (data.skin || "default").toString();
+
+    if (name) {
+        p.name = name;
+    }
+
+    if (!ALLOWED_SKINS.includes(skin)) {
+        skin = "default";
+    }
+    p.skin = skin;
+}
+
 // ====== ГЛАВНЫЙ ИГРОВОЙ ЦИКЛ ======
 
 let lastTime = Date.now();
@@ -463,7 +483,8 @@ setInterval(() => {
             color: p.color,
             chatText: p.chatText || "",
             inventory: p.inventory,
-            weapon: p.weapon
+            weapon: p.weapon,
+            skin: p.skin
         });
     }
 
