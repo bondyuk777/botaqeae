@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <title>Онлайн игра</title>
+  <title>Мини-Dunast.io</title>
   <style>
     html, body {
       margin: 0;
@@ -36,11 +36,11 @@
       background: rgba(0,0,0,0.7);
       padding: 4px 6px;
       border-radius: 4px;
-      display: none; /* скрыт по умолчанию */
+      display: none; /* показываем только когда Enter */
       z-index: 10;
     }
     #chat-input {
-      width: 300px;
+      width: 320px;
       padding: 4px 6px;
       border: none;
       outline: none;
@@ -53,9 +53,8 @@
   <canvas id="game"></canvas>
   <div id="info">Подключаюсь к серверу...</div>
 
-  <!-- 💬 инпут для чата (открывается по Enter) -->
   <div id="chat-box">
-    <input id="chat-input" maxlength="60" placeholder="Напиши сообщение и нажми Enter" />
+    <input id="chat-input" maxlength="60" placeholder="Напиши сообщение и Enter" />
   </div>
 
   <script type="module" src="./client.js"></script>
