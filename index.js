@@ -2,15 +2,14 @@ const http = require("http");
 const WebSocket = require("ws");
 const url = require("url");
 
-const ALLOWED_HOST = "sploop.io"; // чтобы через прокси не ходили куда угодно
+const ALLOWED_HOST = "sploop.io";
 
-// Обычный HTTP-сервер (Render любит, чтобы что-то отвечало по HTTP)
+// HTTP сервер (для Render health-check)
 const server = http.createServer((req, res) => {
-  res.writeHead(200, { "Content-Type": "text/plain" });
-  res.end("Sploop proxy is running\n");
+  res.writeHead(200, {"Content-Type": "text/plain"});
+  res.end("Sploop proxy running\n");
 });
 
-// WebSocket-сервер поверх HTTP-сервера
 const wss = new WebSocket.Server({ server });
 
 wss.on("connection", (client, req) => {
@@ -20,77 +19,84 @@ wss.on("connection", (client, req) => {
   const target = parsed.query.target;
 
   if (!target) {
-    console.log("No target provided, closing");
+    console.log("No target, closing");
     client.close();
     return;
   }
 
   let upstreamUrl = target;
-  console.log("Requested upstream:", upstreamUrl);
+  console.log("Target:", upstreamUrl);
 
-  // Немного безопасности: разрешаем только sploop.io
   try {
     const parsedUp = new URL(upstreamUrl);
     if (!parsedUp.host.includes(ALLOWED_HOST)) {
-      console.log("Blocked upstream host:", parsedUp.host);
+      console.log("Rejected:", parsedUp.host);
       client.close();
       return;
     }
   } catch (e) {
-    console.log("Bad upstream URL:", upstreamUrl, e);
+    console.log("Invalid URL:", upstreamUrl, e);
     client.close();
     return;
   }
 
-  // Подключаемся к реальному WebSocket игры
-  const upstream = new WebSocket(upstreamUrl);
+  const upstream = new WebSocket(upstreamUrl, {
+    perMessageDeflate: false // Disable compression (игры часто не любят)
+  });
 
   upstream.on("open", () => {
-    console.log("Connected to upstream:", upstreamUrl);
+    console.log("Connected to upstream");
+
+    // ping/pong keep-alive
+    setInterval(() => {
+      if (upstream.readyState === WebSocket.OPEN) {
+        upstream.ping();
+      }
+      if (client.readyState === WebSocket.OPEN) {
+        client.ping();
+      }
+    }, 5000);
   });
 
-  upstream.on("message", (msg) => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(msg);
+  // Клиент → Сервер игры
+  client.on("message", (data) => {
+    if (upstream.readyState === WebSocket.OPEN) {
+      upstream.send(data);
     }
   });
+
+  // Сервер игры → Клиент
+  upstream.on("message", (data) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(data);
+    }
+  });
+
+  upstream.on("pong", () => {});
+  client.on("pong", () => {});
 
   upstream.on("close", () => {
     console.log("Upstream closed");
-    if (client.readyState === WebSocket.OPEN) {
-      client.close();
-    }
-  });
-
-  upstream.on("error", (err) => {
-    console.log("Upstream error:", err.message);
-    if (client.readyState === WebSocket.OPEN) {
-      client.close();
-    }
-  });
-
-  client.on("message", (msg) => {
-    if (upstream.readyState === WebSocket.OPEN) {
-      upstream.send(msg);
-    }
+    client.close();
   });
 
   client.on("close", () => {
     console.log("Client closed");
-    if (upstream.readyState === WebSocket.OPEN) {
-      upstream.close();
-    }
+    upstream.close();
+  });
+
+  upstream.on("error", (err) => {
+    console.log("Upstream error:", err.message);
+    client.close();
   });
 
   client.on("error", (err) => {
     console.log("Client error:", err.message);
-    if (upstream.readyState === WebSocket.OPEN) {
-      upstream.close();
-    }
+    upstream.close();
   });
 });
 
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => {
-  console.log("Sploop proxy listening on port", PORT);
+  console.log("Sploop proxy listening on", PORT);
 });
