@@ -7,6 +7,8 @@
     html, body {
       margin: 0;
       padding: 0;
+      width: 100%;
+      height: 100%;
       overflow: hidden;
       background: #111;
       color: #fff;
@@ -24,15 +26,18 @@
       padding: 6px 10px;
       border-radius: 4px;
       font-size: 14px;
+      z-index: 10;
     }
     #chat-box {
       position: fixed;
       bottom: 10px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(0,0,0,0.5);
+      background: rgba(0,0,0,0.7);
       padding: 4px 6px;
       border-radius: 4px;
+      display: none; /* скрыт по умолчанию */
+      z-index: 10;
     }
     #chat-input {
       width: 300px;
@@ -45,10 +50,10 @@
   </style>
 </head>
 <body>
-  <canvas id="game" width="800" height="600"></canvas>
+  <canvas id="game"></canvas>
   <div id="info">Подключаюсь к серверу...</div>
 
-  <!-- 💬 инпут для чата -->
+  <!-- 💬 инпут для чата (открывается по Enter) -->
   <div id="chat-box">
     <input id="chat-input" maxlength="60" placeholder="Напиши сообщение и нажми Enter" />
   </div>
