@@ -11,10 +11,9 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
-// ВАЖНО для Render: он задаёт PORT через переменную окружения
 const PORT = process.env.PORT || 3000;
 
-// Раздаём всё из ТЕКУЩЕЙ папки (index.html, client.js и т.п.)
+// Раздаём всё из текущей папки (index.html, client.js, и т.п.)
 app.use(express.static(__dirname));
 
 // ====== ЛОГИКА ИГРЫ ======
@@ -26,7 +25,8 @@ const SPEED = 220;
 const TICK_RATE = 60;
 const TICK_INTERVAL = 1000 / TICK_RATE;
 
-// структура игрока: { id, x, y, vx, vy, name, color }
+// структура игрока:
+// { id, x, y, vx, vy, name, color, chatText, chatUntil }
 
 wss.on("connection", (ws) => {
     const id = nextPlayerId++;
@@ -44,6 +44,8 @@ wss.on("connection", (ws) => {
         color: "#" + Math.floor(Math.random() * 0xffffff)
             .toString(16)
             .padStart(6, "0"),
+        chatText: "",
+        chatUntil: 0
     };
 
     players.set(id, player);
@@ -60,16 +62,16 @@ wss.on("connection", (ws) => {
             return;
         }
 
+        // движение
         if (data.type === "input") {
-            // ожидаем data.keys = { up, down, left, right }
             const p = players.get(id);
             if (!p) return;
 
             let vx = 0, vy = 0;
-            if (data.keys.up) vy -= 1;
-            if (data.keys.down) vy += 1;
-            if (data.keys.left) vx -= 1;
-            if (data.keys.right) vx += 1;
+            if (data.keys?.up) vy -= 1;
+            if (data.keys?.down) vy += 1;
+            if (data.keys?.left) vx -= 1;
+            if (data.keys?.right) vx += 1;
 
             if (vx || vy) {
                 const len = Math.hypot(vx, vy);
@@ -79,6 +81,22 @@ wss.on("connection", (ws) => {
 
             p.vx = vx * SPEED;
             p.vy = vy * SPEED;
+        }
+
+        // 💬 чат
+        if (data.type === "chat") {
+            const p = players.get(id);
+            if (!p) return;
+
+            let text = (data.text || "").toString().trim();
+
+            // ограничиваем длину, без переносов строк
+            text = text.replace(/\r?\n/g, " ").slice(0, 60);
+
+            if (!text) return;
+
+            p.chatText = text;
+            p.chatUntil = Date.now() + 3000; // 3 секунды
         }
     });
 
@@ -96,11 +114,16 @@ setInterval(() => {
     const dt = (now - lastTime) / 1000;
     lastTime = now;
 
-    // обновляем позиции
     for (const p of players.values()) {
+        // позиция
         p.x += p.vx * dt;
         p.y += p.vy * dt;
-        // здесь можно добавить коллизии/границы карты
+
+        // убираем чат, если время вышло
+        if (p.chatText && p.chatUntil && now > p.chatUntil) {
+            p.chatText = "";
+            p.chatUntil = 0;
+        }
     }
 
     // рассылаем состояние всем
