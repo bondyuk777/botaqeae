@@ -1,8 +1,18 @@
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const info = document.getElementById("info");
+
 const chatBox = document.getElementById("chat-box");
 const chatInput = document.getElementById("chat-input");
+
+const menu = document.getElementById("menu");
+const playBtn = document.getElementById("play-btn");
+const nameInput = document.getElementById("name-input");
+const skinOptions = document.querySelectorAll(".skin-option");
+
+// ====== ФЛАГИ ======
+let inMenu = true;
+let chatActive = false;
 
 // ====== ФУЛЛСКРИН КАНВАС ======
 
@@ -25,13 +35,72 @@ let structures = [];
 
 const keys = { up: false, down: false, left: false, right: false };
 
-let chatActive = false;
-
 let cameraX = 0;
 let cameraY = 0;
 
 const protocol = (location.protocol === "https:") ? "wss" : "ws";
 const WS_URL = `${protocol}://${location.host}`;
+
+let selectedSkin = "default";
+let profileToSend = null;
+
+// ====== СТИЛИ СКИНОВ (для отрисовки человечка) ======
+
+const SKIN_STYLES = {
+    default: {
+        body: "#7f8c8d",
+        head: "#f1c40f",
+        outline: "#2c3e50"
+    },
+    red: {
+        body: "#e74c3c",
+        head: "#f1c40f",
+        outline: "#c0392b"
+    },
+    blue: {
+        body: "#3498db",
+        head: "#f1c40f",
+        outline: "#2980b9"
+    },
+    green: {
+        body: "#2ecc71",
+        head: "#f1c40f",
+        outline: "#27ae60"
+    }
+};
+
+// ====== МЕНЮ: ВЫБОР СКИНА И СТАРТ ======
+
+skinOptions.forEach(opt => {
+    opt.addEventListener("click", () => {
+        skinOptions.forEach(o => o.classList.remove("selected"));
+        opt.classList.add("selected");
+        selectedSkin = opt.dataset.skin || "default";
+    });
+});
+
+// Enter в поле ника = нажать кнопку Play
+nameInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+        playBtn.click();
+    }
+});
+
+playBtn.addEventListener("click", () => {
+    if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+        return;
+    }
+
+    const name = nameInput.value.trim().slice(0, 16);
+    profileToSend = { name, skin: selectedSkin };
+
+    inMenu = false;
+    menu.style.display = "none";
+
+    connect();
+});
+
+// ====== ФУНКЦИИ СЕТИ ======
 
 function connect() {
     socket = new WebSocket(WS_URL);
@@ -39,6 +108,11 @@ function connect() {
     socket.addEventListener("open", () => {
         console.log("[NET] connected");
         info.textContent = "Подключено. WASD/стрелки — движение, Enter — чат, ЛКМ — атака, ПКМ — стена, F — меч";
+
+        // отправляем профиль (ник + скин)
+        if (profileToSend) {
+            sendProfile(profileToSend.name, profileToSend.skin);
+        }
     });
 
     socket.addEventListener("message", (event) => {
@@ -65,8 +139,6 @@ function connect() {
         info.textContent = "Отключено от сервера.";
     });
 }
-
-connect();
 
 function sendInput() {
     if (!socket || socket.readyState !== WebSocket.OPEN) return;
@@ -110,9 +182,21 @@ function sendCraft(recipe) {
     }));
 }
 
+function sendProfile(name, skin) {
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    socket.send(JSON.stringify({
+        type: "profile",
+        name,
+        skin
+    }));
+}
+
 // ====== УПРАВЛЕНИЕ КЛАВИАТУРОЙ ======
 
 window.addEventListener("keydown", (e) => {
+    // пока открыто меню — игнорим управление
+    if (inMenu) return;
+
     // если чат активен — обрабатываем только чат
     if (chatActive && document.activeElement === chatInput) {
         if (e.key === "Enter") {
@@ -179,6 +263,7 @@ window.addEventListener("keydown", (e) => {
 });
 
 window.addEventListener("keyup", (e) => {
+    if (inMenu) return;
     if (chatActive && document.activeElement === chatInput) return;
 
     let changed = false;
@@ -215,6 +300,7 @@ function screenToWorld(sx, sy) {
 }
 
 canvas.addEventListener("mousedown", (e) => {
+    if (inMenu) return;
     if (chatActive) return;
 
     if (e.button === 0) {
@@ -261,6 +347,45 @@ function drawGrid(camX, camY) {
         ctx.lineTo(canvas.width, y);
         ctx.stroke();
     }
+}
+
+function drawHuman(p, sx, sy, isMe) {
+    const style = SKIN_STYLES[p.skin] || SKIN_STYLES.default;
+
+    // кольцо под своим персонажем
+    if (isMe) {
+        ctx.beginPath();
+        ctx.arc(sx, sy + 18, 16, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(255,255,255,0.8)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
+
+    // тело
+    ctx.fillStyle = style.body;
+    ctx.fillRect(sx - 12, sy - 6, 24, 26);
+
+    // голова
+    ctx.beginPath();
+    ctx.arc(sx, sy - 18, 10, 0, Math.PI * 2);
+    ctx.fillStyle = style.head;
+    ctx.fill();
+
+    // шлем/контур
+    ctx.beginPath();
+    ctx.arc(sx, sy - 18, 11, 0, Math.PI * 2);
+    ctx.strokeStyle = style.outline;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // руки
+    ctx.fillStyle = style.body;
+    ctx.fillRect(sx - 18, sy - 4, 6, 18);
+    ctx.fillRect(sx + 12, sy - 4, 6, 18);
+
+    // ноги
+    ctx.fillRect(sx - 10, sy + 20, 8, 14);
+    ctx.fillRect(sx + 2, sy + 20, 8, 14);
 }
 
 function render() {
@@ -333,28 +458,19 @@ function render() {
         ctx.fillRect(sx - barW / 2, sy - 28, barW * hpRatio, barH);
     }
 
-    // игроки
+    // игроки (человечки)
     for (const p of players) {
         const sx = p.x - cameraX;
         const sy = p.y - cameraY;
-        if (sx < -50 || sy < -50 || sx > canvas.width + 50 || sy > canvas.height + 50) continue;
+        if (sx < -60 || sy < -60 || sx > canvas.width + 60 || sy > canvas.height + 60) continue;
 
         const isMe = p.id === myId;
 
-        ctx.beginPath();
-        ctx.arc(sx, sy, isMe ? 18 : 14, 0, Math.PI * 2);
-        ctx.fillStyle = p.color || "#0f0";
-        ctx.fill();
-
-        if (isMe) {
-            ctx.lineWidth = 3;
-            ctx.strokeStyle = "#fff";
-            ctx.stroke();
-        }
+        drawHuman(p, sx, sy, isMe);
 
         // чат над головой
         if (p.chatText) {
-            const chatY = sy - 40;
+            const chatY = sy - 44;
 
             ctx.font = "14px sans-serif";
             ctx.textAlign = "center";
@@ -388,7 +504,7 @@ function render() {
         ctx.font = "12px sans-serif";
         ctx.textAlign = "center";
         ctx.fillStyle = "#fff";
-        ctx.fillText(p.name, sx, sy - 20);
+        ctx.fillText(p.name, sx, sy - 22);
     }
 
     // ====== HUD ======
