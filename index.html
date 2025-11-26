@@ -25,13 +25,34 @@
       border-radius: 4px;
       font-size: 14px;
     }
+    #chat-box {
+      position: fixed;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.5);
+      padding: 4px 6px;
+      border-radius: 4px;
+    }
+    #chat-input {
+      width: 300px;
+      padding: 4px 6px;
+      border: none;
+      outline: none;
+      border-radius: 3px;
+      font-size: 14px;
+    }
   </style>
 </head>
 <body>
   <canvas id="game" width="800" height="600"></canvas>
   <div id="info">Подключаюсь к серверу...</div>
 
-  <!-- ВАЖНО: client.js лежит тут же, в этой же папке -->
+  <!-- 💬 инпут для чата -->
+  <div id="chat-box">
+    <input id="chat-input" maxlength="60" placeholder="Напиши сообщение и нажми Enter" />
+  </div>
+
   <script type="module" src="./client.js"></script>
 </body>
 </html>
