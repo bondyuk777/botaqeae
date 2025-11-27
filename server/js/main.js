@@ -1,9 +1,10 @@
 // server/js/main.js
 
-var fs      = require('fs'),
-    Metrics = require('./metrics'),
-    Player  = require('./player').Player,
-    _       = require('underscore');
+// Минимальный, упрощённый запуск сервера BrowserQuest без config.json и metrics
+
+var ws          = require("./ws");
+var WorldServer = require("./worldserver");
+var Player      = require("./player").Player;
 
 // Простой логгер вместо пакета "log"
 var log = {
@@ -18,165 +19,84 @@ var log = {
     }
 };
 
-function main(config) {
-    var ws          = require("./ws"),
-        WorldServer = require("./worldserver"),
-        server      = new ws.MultiVersionWebsocketServer(config.port),
-        metrics     = config.metrics_enabled ? new Metrics(config) : null,
-        worlds      = [],
-        lastTotalPlayers = 0,
-        checkPopulationInterval = setInterval(function () {
-            if (metrics && metrics.isReady) {
-                metrics.getTotalPlayers(function (totalPlayers) {
-                    if (totalPlayers !== lastTotalPlayers) {
-                        lastTotalPlayers = totalPlayers;
-                        _.each(worlds, function (world) {
-                            if (world && typeof world.updatePopulation === "function") {
-                                world.updatePopulation(totalPlayers);
-                            }
-                        });
-                    }
-                });
-            }
-        }, 1000);
+function getWorldDistribution(worlds) {
+    var distribution = [];
+    for (var i = 0; i < worlds.length; i++) {
+        distribution.push(worlds[i].playerCount);
+    }
+    return distribution;
+}
+
+function main() {
+    // Порт, который даёт Render (если нет — 10000 по умолчанию)
+    var port = process.env.PORT || 10000;
+
+    // Сколько миров и сколько игроков на мир
+    var nbWorlds           = 1;      // тебе хватит одного мира
+    var nbPlayersPerWorld  = 200;    // максимум игроков в мире
+    var mapFile            = "./server/maps/world_server.json"; // стандартная карта
 
     log.info("Starting BrowserQuest game server...");
 
-    // ==== Подключение новых игроков ====
+    // Создаём WebSocket-сервер
+    var server = new ws.MultiVersionWebsocketServer(port);
+
+    // Создаём миры
+    var worlds = [];
+    for (var i = 0; i < nbWorlds; i++) {
+        var worldName = "world" + (i + 1);
+        var world = new WorldServer(worldName, nbPlayersPerWorld, server);
+        world.run(mapFile);
+        worlds.push(world);
+        log.info(worldName + " created (capacity: " + nbPlayersPerWorld + " players).");
+    }
+
+    // Когда подключается новый игрок
     server.onConnect(function (connection) {
-        var world,
-            connect = function () {
-                if (world && typeof world.connect_callback === "function") {
-                    world.connect_callback(new Player(connection, world));
-                } else {
-                    log.error("No world available for new connection, closing socket.");
-                    try { connection.close(); } catch (e) {}
-                }
-            };
+        var world = null;
 
-        if (metrics) {
-            metrics.getOpenWorldCount(function (open_world_count) {
-                var candidateWorlds = _.first(worlds, open_world_count || worlds.length);
-                world = _.min(candidateWorlds, function (w) { return w.playerCount; });
+        // Выбираем мир с наименьшим количеством игроков
+        for (var i = 0; i < worlds.length; i++) {
+            if (!world || worlds[i].playerCount < world.playerCount) {
+                world = worlds[i];
+            }
+        }
 
-                if (!world || typeof world.connect_callback !== "function") {
-                    log.error("No suitable world found for connection (metrics mode).");
-                    try { connection.close(); } catch (e) {}
-                    return;
-                }
-                connect();
-            });
+        if (!world) {
+            log.error("No world available in onConnect. worlds.length=" + worlds.length);
+            try {
+                connection.close();
+            } catch (e) {}
+            return;
+        }
+
+        if (typeof world.connect_callback === "function") {
+            world.connect_callback(new Player(connection, world));
         } else {
-            // просто находим мир, где ещё есть место
-            world = _.detect(worlds, function (w) {
-                return w.playerCount < config.nb_players_per_world;
-            });
-
-            if (!world) {
-                log.error(
-                    "No world found in onConnect. worlds.length=" + worlds.length +
-                    ", nb_players_per_world=" + config.nb_players_per_world
-                );
-                try { connection.close(); } catch (e) {}
-                return;
-            }
-
-            if (typeof world.updatePopulation === "function") {
-                world.updatePopulation();
-            }
-
-            connect();
+            log.error("world.connect_callback is not a function");
+            try {
+                connection.close();
+            } catch (e) {}
         }
     });
 
+    // Логи ошибок сервера
     server.onError(function () {
         log.error(Array.prototype.join.call(arguments, ", "));
     });
 
-    var onPopulationChange = function () {
-        if (!metrics) return;
-
-        metrics.updatePlayerCounters(worlds, function (totalPlayers) {
-            _.each(worlds, function (world) {
-                if (world && typeof world.updatePopulation === "function") {
-                    world.updatePopulation(totalPlayers);
-                }
-            });
-        });
-        metrics.updateWorldDistribution(getWorldDistribution(worlds));
-    };
-
-    // ==== Создаём миры ====
-    _.each(_.range(config.nb_worlds), function (i) {
-        var world = new WorldServer('world' + (i + 1), config.nb_players_per_world, server);
-        world.run(config.map_filepath);
-        worlds.push(world);
-        if (metrics) {
-            world.onPlayerAdded(onPopulationChange);
-            world.onPlayerRemoved(onPopulationChange);
-        }
-        log.info("world" + (i + 1) + " created (capacity: " + config.nb_players_per_world + " players).");
-    });
-
+    // Эндпоинт статуса (не обязателен, но пусть будет)
     server.onRequestStatus(function () {
         return JSON.stringify(getWorldDistribution(worlds));
     });
 
-    if (config.metrics_enabled && metrics) {
-        metrics.ready(function () {
-            // initialize all counters to 0 when the server starts
-            onPopulationChange();
-        });
-    }
-
-    process.on('uncaughtException', function (e) {
-        log.error('uncaughtException: ' + e);
+    // Ловим необработанные исключения, чтобы сервер не падал без лога
+    process.on("uncaughtException", function (e) {
+        log.error("uncaughtException: " + e);
     });
 
-    log.info("Server (everything) is listening on port " + config.port);
+    log.info("Server (everything) is listening on port " + port);
 }
 
-// ==== Вспомогательные функции ====
-
-function getWorldDistribution(worlds) {
-    var distribution = [];
-    _.each(worlds, function (world) {
-        distribution.push(world.playerCount);
-    });
-    return distribution;
-}
-
-function getConfigFile(path, callback) {
-    fs.readFile(path, 'utf8', function (err, json_string) {
-        if (err) {
-            console.error("Could not open config file:", err.path);
-            callback(null);
-        } else {
-            callback(JSON.parse(json_string));
-        }
-    });
-}
-
-var defaultConfigPath = './server/config.json',
-    customConfigPath  = './server/config_local.json';
-
-process.argv.forEach(function (val, index) {
-    if (index === 2) {
-        customConfigPath = val;
-    }
-});
-
-getConfigFile(defaultConfigPath, function (defaultConfig) {
-    getConfigFile(customConfigPath, function (localConfig) {
-        if (localConfig) {
-            console.log("Using custom config: ./server/config_local.json");
-            main(localConfig);
-        } else if (defaultConfig) {
-            console.log("This server can be customized by creating a configuration file named: ./server/config_local.json");
-            main(defaultConfig);
-        } else {
-            console.error("Server cannot start without any configuration file.");
-            process.exit(1);
-        }
-    });
-});
+// Стартуем сразу
+main();
