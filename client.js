@@ -45,13 +45,7 @@ const DEFAULT_SKIN = "body42";
 let selectedSkin = DEFAULT_SKIN;
 let profileToSend = null;
 
-// для поворота к мышке
-let mouseWorldX = 0;
-let mouseWorldY = 0;
-// для ориентации чужих игроков
-const prevPositions = {};
-
-// ====== СПРАЙТЫ ТЕЛА (BODY) ======
+// ====== СПРАЙТЫ ТЕЛА (BODY) И РУК ======
 
 const SKIN_SOURCES = {
     body42: "https://sploop.io/img/skins/body42.png",
@@ -64,10 +58,13 @@ const SKIN_SOURCES = {
 const skinImages = {};
 for (const [key, src] of Object.entries(SKIN_SOURCES)) {
     const img = new Image();
-    img.crossOrigin = "anonymous";
     img.src = src;
     skinImages[key] = img;
 }
+
+// одна рука (будем рисовать 2 раза)
+const armImg = new Image();
+armImg.src = "https://sploop.io/img/skins/arm42.png";
 
 // ====== МЕНЮ: ВЫБОР СКИНА И СТАРТ ======
 
@@ -267,7 +264,7 @@ window.addEventListener("keyup", (e) => {
     }
 });
 
-// ====== МЫШЬ (для поворота и постройки) ======
+// ====== МЫШЬ ======
 
 function screenToWorld(sx, sy) {
     const rect = canvas.getBoundingClientRect();
@@ -280,9 +277,10 @@ function screenToWorld(sx, sy) {
 }
 
 canvas.addEventListener("mousemove", (e) => {
+    // курсор нам сейчас не нужен для поворота, но можно оставить, вдруг потом пригодится
     const pos = screenToWorld(e.clientX, e.clientY);
-    mouseWorldX = pos.x;
-    mouseWorldY = pos.y;
+    // mouseWorldX = pos.x;
+    // mouseWorldY = pos.y;
 });
 
 canvas.addEventListener("mousedown", (e) => {
@@ -306,39 +304,64 @@ canvas.addEventListener("mousedown", () => {
     }
 });
 
-// ====== РИСОВАНИЕ ПЕРСОНАЖА (только bodyXX, без armXX, с поворотом к мышке) ======
+// ====== РЕНДЕР ======
 
-function drawHuman(p, sx, sy, isMe, angleRad) {
+// наш человечек: bodyXX + две arm42, без поворота (всегда "вверх" как на скрине)
+function drawHuman(p, sx, sy, isMe) {
     const skinKey = p.skin || DEFAULT_SKIN;
     const bodyImg = skinImages[skinKey];
-    const size = 64;
 
-    ctx.save();
-    ctx.translate(sx, sy);
+    const bodySize = 64;     // общий размер тела
+    const armSize = 32;      // размер руки
+    const armOffsetX = 18;   // сдвиг рук по X от центра
+    const armOffsetY = -4;   // по Y (чуть выше центра)
 
-    // спрайт по дефолту смотрит вверх, а atan2 даёт 0 вправо → поворачиваем на -PI/2
-    const drawAngle = angleRad - Math.PI / 2;
-    ctx.rotate(drawAngle);
-
-    if (bodyImg && bodyImg.complete) {
-        ctx.drawImage(bodyImg, -size / 2, -size / 2, size, size);
-    } else {
-        // простая заглушка, если спрайт не загрузился
-        ctx.fillStyle = "#333";
+    // подчёркиваем своего персонажа кружком под ним
+    if (isMe) {
         ctx.beginPath();
-        ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.arc(sx, sy + bodySize / 2 + 4, 18, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(0,0,0,0.6)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
     }
 
-    ctx.restore();
+    // тело
+    if (bodyImg && bodyImg.complete) {
+        ctx.drawImage(bodyImg, sx - bodySize / 2, sy - bodySize / 2, bodySize, bodySize);
+    }
+
+    // две руки
+    if (armImg && armImg.complete) {
+        // правая рука
+        ctx.drawImage(
+            armImg,
+            sx + armOffsetX - armSize / 2,
+            sy + armOffsetY - armSize / 2,
+            armSize,
+            armSize
+        );
+
+        // левая рука (зеркалим через scale)
+        ctx.save();
+        ctx.translate(sx - armOffsetX, sy + armOffsetY);
+        ctx.scale(-1, 1);
+        ctx.drawImage(
+            armImg,
+            -armSize / 2,
+            -armSize / 2,
+            armSize,
+            armSize
+        );
+        ctx.restore();
+    }
 
     // полоска HP под персонажем
     const barWidth = 60;
     const barHeight = 6;
-    const hpRatio = Math.max(0, Math.min(1, p.hp / p.maxHp || 0));
+    const hpRatio = Math.max(0, Math.min(1, p.hp / p.maxHp));
 
     const barX = sx - barWidth / 2;
-    const barY = sy + size / 2 + 4;
+    const barY = sy + bodySize / 2 + 12;
 
     ctx.fillStyle = "rgba(0,0,0,0.4)";
     ctx.fillRect(barX, barY, barWidth, barHeight);
@@ -350,8 +373,6 @@ function drawHuman(p, sx, sy, isMe, angleRad) {
     ctx.strokeRect(barX, barY, barWidth, barHeight);
 }
 
-// ====== РЕНДЕР ======
-
 function render() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -361,7 +382,7 @@ function render() {
 
     const me = players.find(p => p.id === myId);
 
-    // камера за своим игроком
+    // камера за игроком
     if (me) {
         cameraX = me.x - canvas.width / 2;
         cameraY = me.y - canvas.height / 2;
@@ -425,24 +446,8 @@ function render() {
 
         const isMe = p.id === myId;
 
-        // угол поворота
-        let angle = 0;
-        if (isMe) {
-            const dx = mouseWorldX - p.x;
-            const dy = mouseWorldY - p.y;
-            angle = Math.atan2(dy, dx);          // мой смотрит на курсор
-        } else {
-            const prev = prevPositions[p.id];
-            if (prev) {
-                const dx = p.x - prev.x;
-                const dy = p.y - prev.y;
-                if (dx !== 0 || dy !== 0) {
-                    angle = Math.atan2(dy, dx);  // чужие по направлению движения
-                }
-            }
-        }
-
-        drawHuman(p, sx, sy, isMe, angle);
+        // тело + руки
+        drawHuman(p, sx, sy, isMe);
 
         // чат над головой
         if (p.chatText) {
@@ -481,9 +486,6 @@ function render() {
         ctx.textAlign = "center";
         ctx.fillStyle = "#ff4c4c";
         ctx.fillText(p.name, sx, sy - 32);
-
-        // запоминаем позицию для направления движения
-        prevPositions[p.id] = { x: p.x, y: p.y };
     }
 
     // HUD
