@@ -329,11 +329,11 @@ function drawHuman(p, sx, sy, isMe, angle = 0) {
     }
 
     // тело + руки (вращаем)
-    ctx.save();
-    ctx.translate(sx, sy);
+   ctx.save();
+ctx.translate(sx, sy);
 
-    // если спрайт смотрит вверх/вправо — подстрой этот сдвиг
-    ctx.rotate(angle - Math.PI / 2);
+// без сдвига на 90°
+ctx.rotate(angle);
 
     // тело
     if (bodyImg && bodyImg.complete) {
