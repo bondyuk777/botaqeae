@@ -333,7 +333,7 @@ function drawHuman(p, sx, sy, isMe, angle = 0) {
     ctx.translate(sx, sy);
 
     // если спрайт смотрит вверх/вправо — подстрой этот сдвиг
-    ctx.rotate(angle + Math.PI / 2);
+    ctx.rotate(angle - Math.PI / 2);
 
     // тело
     if (bodyImg && bodyImg.complete) {
