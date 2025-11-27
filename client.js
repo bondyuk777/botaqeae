@@ -45,20 +45,26 @@ const DEFAULT_SKIN = "body42";
 let selectedSkin = DEFAULT_SKIN;
 let profileToSend = null;
 
-// для поворота
-let mouseWorldX = 0;
-let mouseWorldY = 0;
-const prevPositions = {};
+// ====== СПРАЙТЫ ТЕЛА (BODY) И РУК ======
 
-// ====== "РУЧНЫЕ" СКИНЫ (ЦВЕТА) ======
-
-const SKIN_STYLES = {
-    body42: { body: "#f4a341", armor: "#252b33", head: "#ffe4c4", arm: "#252b33" },
-    body85: { body: "#e74c3c", armor: "#2c3e50", head: "#ffe4c4", arm: "#2c3e50" },
-    body11: { body: "#3498db", armor: "#1f2a38", head: "#ffe4c4", arm: "#1f2a38" },
-    body12: { body: "#2ecc71", armor: "#1d3a28", head: "#ffe4c4", arm: "#1d3a28" },
-    body13: { body: "#9b59b6", armor: "#311b3f", head: "#ffe4c4", arm: "#311b3f" }
+const SKIN_SOURCES = {
+    body42: "https://sploop.io/img/skins/body42.png",
+    body85: "https://sploop.io/img/skins/body85.png",
+    body11: "https://sploop.io/img/skins/body11.png",
+    body12: "https://sploop.io/img/skins/body12.png",
+    body13: "https://sploop.io/img/skins/body13.png"
 };
+
+const skinImages = {};
+for (const [key, src] of Object.entries(SKIN_SOURCES)) {
+    const img = new Image();
+    img.src = src;
+    skinImages[key] = img;
+}
+
+// одна рука (будем рисовать 2 раза)
+const armImg = new Image();
+armImg.src = "https://sploop.io/img/skins/arm42.png";
 
 // ====== МЕНЮ: ВЫБОР СКИНА И СТАРТ ======
 
@@ -90,7 +96,7 @@ playBtn.addEventListener("click", () => {
     connect();
 });
 
-// ====== СЕТЬ ======
+// ====== СЕТЕВЫЕ ФУНКЦИИ ======
 
 function connect() {
     socket = new WebSocket(WS_URL);
@@ -208,7 +214,7 @@ window.addEventListener("keydown", (e) => {
         return;
     }
 
-    // крафт
+    // крафт меча
     if (e.code === "KeyF") {
         sendCraft("wood_sword");
         e.preventDefault();
@@ -271,9 +277,10 @@ function screenToWorld(sx, sy) {
 }
 
 canvas.addEventListener("mousemove", (e) => {
+    // курсор нам сейчас не нужен для поворота, но можно оставить, вдруг потом пригодится
     const pos = screenToWorld(e.clientX, e.clientY);
-    mouseWorldX = pos.x;
-    mouseWorldY = pos.y;
+    // mouseWorldX = pos.x;
+    // mouseWorldY = pos.y;
 });
 
 canvas.addEventListener("mousedown", (e) => {
@@ -299,98 +306,87 @@ canvas.addEventListener("mousedown", () => {
 
 // ====== РЕНДЕР ======
 
-function drawGrid(camX, camY) {
-    const gridSize = 100;
-    ctx.strokeStyle = "rgba(255,255,255,0.05)";
-    ctx.lineWidth = 1;
+// наш человечек: bodyXX + две arm42, без поворота (всегда "вверх" как на скрине)
+function drawHuman(p, sx, sy, isMe) {
+    const skinKey = p.skin || DEFAULT_SKIN;
+    const bodyImg = skinImages[skinKey];
 
-    const startX = -((camX % gridSize) + gridSize) % gridSize;
-    const startY = -((camY % gridSize) + gridSize) % gridSize;
+    const bodySize = 64;     // общий размер тела
+    const armSize = 32;      // размер руки
+    const armOffsetX = 18;   // сдвиг рук по X от центра
+    const armOffsetY = -4;   // по Y (чуть выше центра)
 
-    for (let x = startX; x < canvas.width; x += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, canvas.height);
-        ctx.stroke();
-    }
-    for (let y = startY; y < canvas.height; y += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(canvas.width, y);
-        ctx.stroke();
-    }
-}
-
-// наш "свой" человечек: круг-тело, голова, две ровные руки
-function drawHuman(p, sx, sy, isMe, angleRad) {
-    const style = SKIN_STYLES[p.skin] || SKIN_STYLES[DEFAULT_SKIN];
-
-    const bodyR = 18;
-    const headR = 10;
-    const armR = 7;
-
-    // подсветка "это ты" – маленький круг
+    // подчёркиваем своего персонажа кружком под ним
     if (isMe) {
         ctx.beginPath();
-        ctx.arc(sx, sy + bodyR + 4, bodyR * 0.9, 0, Math.PI * 2);
-        ctx.strokeStyle = "rgba(255,255,255,0.6)";
+        ctx.arc(sx, sy + bodySize / 2 + 4, 18, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(0,0,0,0.6)";
         ctx.lineWidth = 2;
         ctx.stroke();
     }
 
-    ctx.save();
-    ctx.translate(sx, sy);
+    // тело
+    if (bodyImg && bodyImg.complete) {
+        ctx.drawImage(bodyImg, sx - bodySize / 2, sy - bodySize / 2, bodySize, bodySize);
+    }
 
-    // базовый спрайт нарисован "вправо" (голова смотрит вправо)
-    ctx.rotate(angleRad);
+    // две руки
+    if (armImg && armImg.complete) {
+        // правая рука
+        ctx.drawImage(
+            armImg,
+            sx + armOffsetX - armSize / 2,
+            sy + armOffsetY - armSize / 2,
+            armSize,
+            armSize
+        );
 
-    // ТЕЛО
-    ctx.beginPath();
-    ctx.arc(0, 0, bodyR, 0, Math.PI * 2);
-    ctx.fillStyle = style.armor;
-    ctx.fill();
+        // левая рука (зеркалим через scale)
+        ctx.save();
+        ctx.translate(sx - armOffsetX, sy + armOffsetY);
+        ctx.scale(-1, 1);
+        ctx.drawImage(
+            armImg,
+            -armSize / 2,
+            -armSize / 2,
+            armSize,
+            armSize
+        );
+        ctx.restore();
+    }
 
-    ctx.beginPath();
-    ctx.arc(0, 0, bodyR - 4, 0, Math.PI * 2);
-    ctx.fillStyle = style.body;
-    ctx.fill();
+    // полоска HP под персонажем
+    const barWidth = 60;
+    const barHeight = 6;
+    const hpRatio = Math.max(0, Math.min(1, p.hp / p.maxHp));
 
-    // ГОЛОВА (вперед по направлению)
-    ctx.beginPath();
-    ctx.arc(bodyR + 4, 0, headR, 0, Math.PI * 2);
-    ctx.fillStyle = style.head;
-    ctx.fill();
+    const barX = sx - barWidth / 2;
+    const barY = sy + bodySize / 2 + 12;
 
-    // РУКИ (две штуки, ровно симметрично)
-    ctx.fillStyle = style.arm;
+    ctx.fillStyle = "rgba(0,0,0,0.4)";
+    ctx.fillRect(barX, barY, barWidth, barHeight);
 
-    // верхняя рука
-    ctx.beginPath();
-    ctx.arc(0, -bodyR + 6, armR, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillStyle = "#3cb4ff";
+    ctx.fillRect(barX + 1, barY + 1, (barWidth - 2) * hpRatio, barHeight - 2);
 
-    // нижняя рука
-    ctx.beginPath();
-    ctx.arc(0, bodyR - 6, armR, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.restore();
+    ctx.strokeStyle = "rgba(255,255,255,0.5)";
+    ctx.strokeRect(barX, barY, barWidth, barHeight);
 }
 
 function render() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    ctx.fillStyle = "#222";
+    // фон как трава
+    ctx.fillStyle = "#769a3b";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     const me = players.find(p => p.id === myId);
 
+    // камера за игроком
     if (me) {
         cameraX = me.x - canvas.width / 2;
         cameraY = me.y - canvas.height / 2;
     }
-
-    drawGrid(cameraX, cameraY);
 
     // ресурсы
     for (const r of resources) {
@@ -446,29 +442,14 @@ function render() {
     for (const p of players) {
         const sx = p.x - cameraX;
         const sy = p.y - cameraY;
-        if (sx < -60 || sy < -60 || sx > canvas.width + 60 || sy > canvas.height + 60) continue;
+        if (sx < -80 || sy < -80 || sx > canvas.width + 80 || sy > canvas.height + 80) continue;
 
         const isMe = p.id === myId;
 
-        let angle = 0;
-        if (isMe) {
-            const dx = mouseWorldX - p.x;
-            const dy = mouseWorldY - p.y;
-            angle = Math.atan2(dy, dx); // смотрим на курсор
-        } else {
-            const prev = prevPositions[p.id];
-            if (prev) {
-                const dx = p.x - prev.x;
-                const dy = p.y - prev.y;
-                if (dx !== 0 || dy !== 0) {
-                    angle = Math.atan2(dy, dx); // по направлению движения
-                }
-            }
-        }
+        // тело + руки
+        drawHuman(p, sx, sy, isMe);
 
-        drawHuman(p, sx, sy, isMe, angle);
-
-        // чат
+        // чат над головой
         if (p.chatText) {
             const chatY = sy - 40;
 
@@ -500,13 +481,11 @@ function render() {
             ctx.fillText(p.chatText, sx, chatY);
         }
 
-        // ник
-        ctx.font = "12px sans-serif";
+        // ник (красный, как на скрине)
+        ctx.font = "14px sans-serif";
         ctx.textAlign = "center";
-        ctx.fillStyle = "#fff";
-        ctx.fillText(p.name, sx, sy - 24);
-
-        prevPositions[p.id] = { x: p.x, y: p.y };
+        ctx.fillStyle = "#ff4c4c";
+        ctx.fillText(p.name, sx, sy - 32);
     }
 
     // HUD
@@ -523,7 +502,7 @@ function render() {
         ctx.fillText(`Weapon: ${me.weapon}`, 10, 60);
 
         ctx.fillText(`[WASD / стрелки] движение`, 10, 90);
-        ctx.fillText(`[ЛКМ] атака (по ближайшей цели)`, 10, 110);
+        ctx.fillText(`[ЛКМ] атака`, 10, 110);
         ctx.fillText(`[ПКМ] стена (10 wood)`, 10, 130);
         ctx.fillText(`[F] деревянный меч (20 wood)`, 10, 150);
         ctx.fillText(`[Enter] чат, [Esc] закрыть чат`, 10, 170);
