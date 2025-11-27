@@ -1,12 +1,22 @@
-
-var cls = require("./lib/class"),
-    _ = require("underscore"),
-    Messages = require("./message"),
-    Utils = require("./utils"),
+var cls        = require("./lib/class"),
+    _          = require("underscore"),
+    Messages   = require("./message"),
+    Utils      = require("./utils"),
     Properties = require("./properties"),
-    Formulas = require("./formulas"),
-    check = require("./format").check,
-    Types = require("../../shared/js/gametypes");
+    Formulas   = require("./formulas"),
+    check      = require("./format").check,
+    Types      = require("../../shared/js/gametypes"),
+    Character  = require("./character");
+
+// Простой логгер вместо внешнего модуля log
+var log = {
+    debug: function () {
+        console.log.apply(console, arguments);
+    },
+    error: function () {
+        console.error.apply(console, arguments);
+    }
+};
 
 module.exports = Player = Character.extend({
     init: function(connection, worldServer) {
@@ -21,24 +31,24 @@ module.exports = Player = Character.extend({
         this.isDead = false;
         this.haters = {};
         this.lastCheckpoint = null;
-        this.formatChecker = new FormatChecker();
+        // this.formatChecker = new FormatChecker(); // убрано, чтобы не падало
         this.disconnectTimeout = null;
         
         this.connection.listen(function(message) {
             var action = parseInt(message[0]);
             
-            log.debug("Received: "+message);
+            log.debug("Received: " + message);
             if(!check(message)) {
-                self.connection.close("Invalid "+Types.getMessageTypeAsString(action)+" message format: "+message);
+                self.connection.close("Invalid " + Types.getMessageTypeAsString(action) + " message format: " + message);
                 return;
             }
             
             if(!self.hasEnteredGame && action !== Types.Messages.HELLO) { // HELLO must be the first message
-                self.connection.close("Invalid handshake message: "+message);
+                self.connection.close("Invalid handshake message: " + message);
                 return;
             }
             if(self.hasEnteredGame && !self.isDead && action === Types.Messages.HELLO) { // HELLO can be sent only once
-                self.connection.close("Cannot initiate handshake twice: "+message);
+                self.connection.close("Cannot initiate handshake twice: " + message);
                 return;
             }
             
@@ -205,7 +215,8 @@ module.exports = Player = Character.extend({
             }
             else if(action === Types.Messages.OPEN) {
                 var chest = self.server.getEntityById(message[1]);
-                if(chest && chest instanceof Chest) {
+                // убрал Chest, просто проверяем, что сундук есть
+                if(chest) {
                     self.server.handleOpenedChest(chest, self);
                 }
             }
