@@ -60,7 +60,7 @@ const SKIN_STYLES = {
     body13: { body: "#9b59b6", head: "#f1c40f", outline: "#8e44ad" }
 };
 
-// ====== КАРТИНКИ СКИНОВ (Sploop) ======
+// ====== КАРТИНКИ СКИНОВ (BODY) ======
 
 const SKIN_SOURCES = {
     body42: "https://sploop.io/img/skins/body42.png",
@@ -71,11 +71,23 @@ const SKIN_SOURCES = {
 };
 
 const skinImages = {};
-
 for (const [key, src] of Object.entries(SKIN_SOURCES)) {
     const img = new Image();
     img.src = src; // грузим с удалённого сайта
     skinImages[key] = img;
+}
+
+// ====== КАРТИНКА РУК (arm42 – используем для всех скинов) ======
+
+const ARM_SOURCES = {
+    body42: "https://sploop.io/img/skins/arm42.png"
+};
+
+const armImages = {};
+for (const [key, src] of Object.entries(ARM_SOURCES)) {
+    const img = new Image();
+    img.src = src;
+    armImages[key] = img;
 }
 
 // ====== МЕНЮ: ВЫБОР СКИНА И СТАРТ ======
@@ -359,40 +371,33 @@ function drawGrid(camX, camY) {
     for (let y = startY; y < canvas.height; y += gridSize) {
         ctx.beginPath();
         ctx.moveTo(0, y);
-        ctx.lineTo(0, y);
+        ctx.lineTo(canvas.width, y);
         ctx.stroke();
     }
 }
 
-// аккуратный человечек/скин с поворотом
+// аккуратный человечек/скин с поворотом и руками
 function drawHuman(p, sx, sy, isMe, angleRad) {
     const skinKey = p.skin || DEFAULT_SKIN;
-    const img = skinImages[skinKey];
+    const bodyImg = skinImages[skinKey];
+    // используем arm42 для всех, если нет своего
+    const armImg = armImages[skinKey] || armImages["body42"];
     const style = SKIN_STYLES[skinKey] || SKIN_STYLES[DEFAULT_SKIN];
 
     const size = 64;
 
-    // кольцо под своим персонажем (не вращается)
-    if (isMe) {
-        ctx.beginPath();
-        ctx.arc(sx, sy + size / 2, size * 0.5, 0, Math.PI * 2);
-        ctx.strokeStyle = "rgba(255,255,255,0.8)";
-        ctx.lineWidth = 2;
-        ctx.stroke();
-    }
-
     ctx.save();
     ctx.translate(sx, sy);
 
-    // спрайт из Sploop смотрит вверх, а угол Math.atan2 считает 0 вправо
-    // поэтому поворачиваем на angleRad - PI/2
+    // спрайты Sploop ориентированы вверх, а Math.atan2 — 0 вправо
     const drawAngle = angleRad - Math.PI / 2;
     ctx.rotate(drawAngle);
 
-    if (img && img.complete) {
-        ctx.drawImage(img, -size / 2, -size / 2, size, size);
+    // тело
+    if (bodyImg && bodyImg.complete) {
+        ctx.drawImage(bodyImg, -size / 2, -size / 2, size, size);
     } else {
-        // fallback — рисованный человечек
+        // fallback – рисованный человечек
         ctx.fillStyle = style.body;
         ctx.fillRect(-12, -6, 24, 26);
 
@@ -415,7 +420,34 @@ function drawHuman(p, sx, sy, isMe, angleRad) {
         ctx.fillRect(2, 20, 8, 14);
     }
 
+    // 💪 две руки поверх тела
+    if (armImg && armImg.complete) {
+        const armSize = size;
+
+        // правая (справа)
+        ctx.save();
+        ctx.translate(10, 0);
+        ctx.drawImage(armImg, -armSize / 2, -armSize / 2, armSize, armSize);
+        ctx.restore();
+
+        // левая (слева, зеркально)
+        ctx.save();
+        ctx.translate(-10, 0);
+        ctx.scale(-1, 1); // отзеркаливаем по X
+        ctx.drawImage(armImg, -armSize / 2, -armSize / 2, armSize, armSize);
+        ctx.restore();
+    }
+
     ctx.restore();
+
+    // подсветка "это ты" — кольцо под персонажем (если хочешь, можно убрать)
+    if (isMe) {
+        ctx.beginPath();
+        ctx.arc(sx, sy + size / 2, size * 0.5, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(255,255,255,0.6)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
 }
 
 function render() {
