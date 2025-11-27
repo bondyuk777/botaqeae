@@ -1,9 +1,16 @@
-
-var cls = require("./lib/class"),
-    Messages = require("./message"),
-    Utils = require("./utils"),
+var cls        = require("./lib/class"),
+    Messages   = require("./message"),
+    Utils      = require("./utils"),
     Properties = require("./properties"),
-    Types = require("../../shared/js/gametypes");
+    Types      = require("../../shared/js/gametypes"),
+    Entity     = require("./entity");
+
+// Простейший логгер, чтобы не падать на log.debug
+var log = {
+    debug: function () {
+        console.log.apply(console, arguments);
+    }
+};
 
 module.exports = Character = Entity.extend({
     init: function(id, type, kind, x, y) {
@@ -32,7 +39,7 @@ module.exports = Character = Entity.extend({
     },
     
     regenHealthBy: function(value) {
-        var hp = this.hitPoints,
+        var hp  = this.hitPoints,
             max = this.maxHitPoints;
             
         if(hp < max) {
@@ -82,7 +89,7 @@ module.exports = Character = Entity.extend({
     removeAttacker: function(entity) {
         if(entity && entity.id in this.attackers) {
             delete this.attackers[entity.id];
-            log.debug(this.id +" REMOVED ATTACKER "+ entity.id);
+            log.debug(this.id + " REMOVED ATTACKER " + entity.id);
         }
     },
     
