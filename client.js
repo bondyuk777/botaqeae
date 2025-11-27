@@ -60,7 +60,7 @@ const SKIN_STYLES = {
     body13: { body: "#9b59b6", head: "#f1c40f", outline: "#8e44ad" }
 };
 
-// ====== КАРТИНКИ СКИНОВ (BODY) ======
+// ====== КАРТИНКИ ТЕЛ (BODY) ======
 
 const SKIN_SOURCES = {
     body42: "https://sploop.io/img/skins/body42.png",
@@ -73,22 +73,15 @@ const SKIN_SOURCES = {
 const skinImages = {};
 for (const [key, src] of Object.entries(SKIN_SOURCES)) {
     const img = new Image();
-    img.src = src; // грузим с удалённого сайта
+    img.src = src;
     skinImages[key] = img;
 }
 
-// ====== КАРТИНКА РУК (arm42 – используем для всех скинов) ======
+// ====== РУКИ (arm42 — одна рука, мы рисуем её два раза) ======
 
-const ARM_SOURCES = {
-    body42: "https://sploop.io/img/skins/arm42.png"
-};
-
-const armImages = {};
-for (const [key, src] of Object.entries(ARM_SOURCES)) {
-    const img = new Image();
-    img.src = src;
-    armImages[key] = img;
-}
+const ARM_SRC = "https://sploop.io/img/skins/arm42.png";
+const armImg = new Image();
+armImg.src = ARM_SRC;
 
 // ====== МЕНЮ: ВЫБОР СКИНА И СТАРТ ======
 
@@ -128,9 +121,9 @@ function connect() {
 
     socket.addEventListener("open", () => {
         console.log("[NET] connected");
-        info.textContent = "Подключено. WASD/стрелки — движение, Enter — чат, ЛКМ — атака, ПКМ — стена, F — меч";
+        info.textContent =
+            "Подключено. WASD/стрелки — движение, Enter — чат, ЛКМ — атака, ПКМ — стена, F — меч";
 
-        // отправляем профиль (ник + скин)
         if (profileToSend) {
             sendProfile(profileToSend.name, profileToSend.skin);
         }
@@ -215,10 +208,9 @@ function sendProfile(name, skin) {
 // ====== УПРАВЛЕНИЕ КЛАВИАТУРОЙ ======
 
 window.addEventListener("keydown", (e) => {
-    // пока открыто меню — игнорим управление
     if (inMenu) return;
 
-    // если чат активен — обрабатываем только чат
+    // чат активен
     if (chatActive && document.activeElement === chatInput) {
         if (e.key === "Enter") {
             const text = chatInput.value;
@@ -243,7 +235,7 @@ window.addEventListener("keydown", (e) => {
         return;
     }
 
-    // чат НЕ активен
+    // открыть чат
     if (e.key === "Enter") {
         chatActive = true;
         chatBox.style.display = "block";
@@ -254,9 +246,8 @@ window.addEventListener("keydown", (e) => {
         return;
     }
 
-    // крафт
+    // крафт меча
     if (e.code === "KeyF") {
-        // крафт деревянного меча
         sendCraft("wood_sword");
         e.preventDefault();
     }
@@ -308,7 +299,7 @@ window.addEventListener("keyup", (e) => {
     }
 });
 
-// ====== МЫШЬ: АТАКА + СТРОЙКА + ОБНОВЛЕНИЕ КУРСОРА ======
+// ====== МЫШЬ ======
 
 function screenToWorld(sx, sy) {
     const rect = canvas.getBoundingClientRect();
@@ -331,10 +322,8 @@ canvas.addEventListener("mousedown", (e) => {
     if (chatActive) return;
 
     if (e.button === 0) {
-        // ЛКМ — атака
         sendAttack();
     } else if (e.button === 2) {
-        // ПКМ — стена в точке курсора
         const pos = screenToWorld(e.clientX, e.clientY);
         sendBuildWall(pos.x, pos.y);
     }
@@ -344,7 +333,6 @@ canvas.addEventListener("contextmenu", (e) => {
     e.preventDefault();
 });
 
-// если кликаем по канвасу — убираем фокус с чата, если он закрыт
 canvas.addEventListener("mousedown", () => {
     if (!chatActive) {
         chatInput.blur();
@@ -376,28 +364,36 @@ function drawGrid(camX, camY) {
     }
 }
 
-// аккуратный человечек/скин с поворотом и руками
+// рисуем тело + две руки
 function drawHuman(p, sx, sy, isMe, angleRad) {
     const skinKey = p.skin || DEFAULT_SKIN;
     const bodyImg = skinImages[skinKey];
-    // используем arm42 для всех, если нет своего
-    const armImg = armImages[skinKey] || armImages["body42"];
     const style = SKIN_STYLES[skinKey] || SKIN_STYLES[DEFAULT_SKIN];
 
-    const size = 64;
+    const sizeBody = 64;
+    const sizeArm = 32;
+
+    // подсветка "это ты" – круг снизу
+    if (isMe) {
+        ctx.beginPath();
+        ctx.arc(sx, sy + sizeBody / 2, 20, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(255,255,255,0.6)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
 
     ctx.save();
     ctx.translate(sx, sy);
 
-    // спрайты Sploop ориентированы вверх, а Math.atan2 — 0 вправо
+    // спрайты Sploop смотрят вверх, atan2 даёт 0 вправо → поворачиваем на -PI/2
     const drawAngle = angleRad - Math.PI / 2;
     ctx.rotate(drawAngle);
 
-    // тело
+    // ---- ТЕЛО ----
     if (bodyImg && bodyImg.complete) {
-        ctx.drawImage(bodyImg, -size / 2, -size / 2, size, size);
+        ctx.drawImage(bodyImg, -sizeBody / 2, -sizeBody / 2, sizeBody, sizeBody);
     } else {
-        // fallback – рисованный человечек
+        // fallback – простой человечек
         ctx.fillStyle = style.body;
         ctx.fillRect(-12, -6, 24, 26);
 
@@ -411,43 +407,25 @@ function drawHuman(p, sx, sy, isMe, angleRad) {
         ctx.strokeStyle = style.outline;
         ctx.lineWidth = 2;
         ctx.stroke();
-
-        ctx.fillStyle = style.body;
-        ctx.fillRect(-18, -4, 6, 18);
-        ctx.fillRect(12, -4, 6, 18);
-
-        ctx.fillRect(-10, 20, 8, 14);
-        ctx.fillRect(2, 20, 8, 14);
     }
 
-    // 💪 две руки поверх тела
+    // ---- РУКИ (arm42.png, 2 штуки) ----
     if (armImg && armImg.complete) {
-        const armSize = size;
-
-        // правая (справа)
+        // правая рука
         ctx.save();
-        ctx.translate(10, 0);
-        ctx.drawImage(armImg, -armSize / 2, -armSize / 2, armSize, armSize);
+        ctx.translate(18, -4); // чуть сбоку и вверх
+        ctx.drawImage(armImg, -sizeArm / 2, -sizeArm / 2, sizeArm, sizeArm);
         ctx.restore();
 
-        // левая (слева, зеркально)
+        // левая рука (зеркалим по X)
         ctx.save();
-        ctx.translate(-10, 0);
-        ctx.scale(-1, 1); // отзеркаливаем по X
-        ctx.drawImage(armImg, -armSize / 2, -armSize / 2, armSize, armSize);
+        ctx.translate(-18, -4);
+        ctx.scale(-1, 1);
+        ctx.drawImage(armImg, -sizeArm / 2, -sizeArm / 2, sizeArm, sizeArm);
         ctx.restore();
     }
 
     ctx.restore();
-
-    // подсветка "это ты" — кольцо под персонажем (если хочешь, можно убрать)
-    if (isMe) {
-        ctx.beginPath();
-        ctx.arc(sx, sy + size / 2, size * 0.5, 0, Math.PI * 2);
-        ctx.strokeStyle = "rgba(255,255,255,0.6)";
-        ctx.lineWidth = 2;
-        ctx.stroke();
-    }
 }
 
 function render() {
@@ -457,10 +435,9 @@ function render() {
     ctx.fillStyle = "#222";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // находим себя
     const me = players.find(p => p.id === myId);
 
-    // камера за игроком
+    // камера
     if (me) {
         cameraX = me.x - canvas.width / 2;
         cameraY = me.y - canvas.height / 2;
@@ -485,7 +462,7 @@ function render() {
         ctx.fill();
     }
 
-    // строения (стены)
+    // строения
     for (const s of structures) {
         const sx = s.x - cameraX;
         const sy = s.y - cameraY;
@@ -510,7 +487,6 @@ function render() {
         ctx.fillStyle = "#c0392b";
         ctx.fill();
 
-        // полоска хп
         const hpRatio = m.hp / m.maxHp;
         const barW = 30;
         const barH = 4;
@@ -520,7 +496,7 @@ function render() {
         ctx.fillRect(sx - barW / 2, sy - 28, barW * hpRatio, barH);
     }
 
-    // игроки (скины, повернутые)
+    // игроки
     for (const p of players) {
         const sx = p.x - cameraX;
         const sy = p.y - cameraY;
@@ -528,16 +504,12 @@ function render() {
 
         const isMe = p.id === myId;
 
-        // угол поворота
         let angle = 0;
-
         if (isMe) {
-            // смотрим на курсор мыши
             const dx = mouseWorldX - p.x;
             const dy = mouseWorldY - p.y;
             angle = Math.atan2(dy, dx);
         } else {
-            // для чужих ориентируем по направлению движения (по позиции между кадрами)
             const prev = prevPositions[p.id];
             if (prev) {
                 const dx = p.x - prev.x;
@@ -550,7 +522,7 @@ function render() {
 
         drawHuman(p, sx, sy, isMe, angle);
 
-        // чат над головой
+        // чат
         if (p.chatText) {
             const chatY = sy - 44;
 
@@ -588,12 +560,10 @@ function render() {
         ctx.fillStyle = "#fff";
         ctx.fillText(p.name, sx, sy - 22);
 
-        // сохраняем позицию для следующего кадра (для направления чужих)
         prevPositions[p.id] = { x: p.x, y: p.y };
     }
 
-    // ====== HUD ======
-
+    // HUD
     if (me) {
         ctx.textAlign = "left";
         ctx.font = "14px sans-serif";
@@ -608,8 +578,8 @@ function render() {
 
         ctx.fillText(`[WASD / стрелки] движение`, 10, 90);
         ctx.fillText(`[ЛКМ] атака (по ближайшей цели)`, 10, 110);
-        ctx.fillText(`[ПКМ] поставить стену (10 wood)`, 10, 130);
-        ctx.fillText(`[F] крафт деревянного меча (20 wood)`, 10, 150);
+        ctx.fillText(`[ПКМ] стена (10 wood)`, 10, 130);
+        ctx.fillText(`[F] деревянный меч (20 wood)`, 10, 150);
         ctx.fillText(`[Enter] чат, [Esc] закрыть чат`, 10, 170);
     }
 
