@@ -10,7 +10,8 @@
     "bison": ">0",
     "websocket": ">0",
     "websocket-server": "npm:node-websocket-server@1.1.4",
-    "sanitize-html": "^2.12.1",
+    "log": ">0",
+    "sanitizer": ">0",
     "memcache": ">0"
   }
 }
