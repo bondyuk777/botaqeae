@@ -316,7 +316,7 @@ function drawHuman(p, sx, sy, isMe, angle = 0) {
 
     const bodySize = 64;     // общий размер тела
     const armSize = 32;      // размер руки
-    const armOffsetX = 18;   // сдвиг рук по X от центра
+    const armOffsetX = 22;   // сдвиг рук по X от центра 18
     const armOffsetY = 8;   // по Y (чуть выше центра) - 4
 
     // подчёркиваем своего персонажа кружком под ним (не вращаем)
