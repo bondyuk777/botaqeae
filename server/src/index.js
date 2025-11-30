@@ -23,11 +23,11 @@ app.use(e.json()); // Add JSON body parser for API requests
 
 // === MySQL подключение ===
 const dbPool = mysql.createPool({
-    host: "sql8.freesqldatabase.com",
-    user: "sql8810063",
-    password: "Ympiy6PevU",
-    database: "sql8810063",
-    port: 3306,
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306,
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0
