@@ -24,6 +24,8 @@ window.loadedScript = true;
 
 require("./libs/modernizr.js");
 
+require("./auth.js"); // ← вот ЭТО строка, которую нужно добавить
+
 var io = require('./libs/io-client.js');
 
 var UTILS = require("./libs/utils.js");
