@@ -3,6 +3,8 @@ import path from "node:path";
 import fs from "node:fs";
 import { WebSocketServer } from "ws";
 import { createServer } from "node:http";
+import mysql from "mysql2/promise";
+import bcrypt from "bcrypt";
 import { decode, encode } from "msgpack-lite";
 import { Game } from "./moomoo/server.js";
 import { Player } from "./moomoo/modules/player.js";
@@ -18,6 +20,50 @@ const app = e();
 
 
 app.use(e.json()); // Add JSON body parser for API requests 
+
+// === MySQL подключение ===
+const dbPool = mysql.createPool({
+    host: "sql8.freesqldatabase.com",
+    user: "sql8810063",
+    password: "Ympiy6PevU",
+    database: "sql8810063",
+    port: 3306,
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
+});
+
+// Генерация ID для пользователя (формат MM-XXXXXXXX-YYYY)
+function generateUserId() {
+    const part = Math.random().toString(16).slice(2, 10).toUpperCase();
+    const part2 = Math.floor(Date.now() / 1000).toString(16).slice(-4).toUpperCase();
+    return `MM-${part}-${part2}`;
+}
+
+// Создание таблицы users, если её нет
+async function initDb() {
+    const sql = `
+        CREATE TABLE IF NOT EXISTS users (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id VARCHAR(32) NOT NULL UNIQUE,
+            nickname VARCHAR(32) NOT NULL UNIQUE,
+            password_hash VARCHAR(255) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `;
+    const conn = await dbPool.getConnection();
+    try {
+        await conn.query(sql);
+        console.log("DB: users table is ready");
+    } catch (err) {
+        console.error("DB init error:", err);
+    } finally {
+        conn.release();
+    }
+}
+
+initDb().catch(err => console.error("initDb failed:", err));
+
 
 const colimit = new ConnectionLimit(4);
 
@@ -605,6 +651,89 @@ wss.on("connection", async (socket, req) => {
 
     });
 
+});
+
+// === API: регистрация ===
+app.post("/api/auth/register", async (req, res) => {
+    try {
+        const { nickname, password } = req.body || {};
+
+        if (!nickname || !password) {
+            return res.status(400).json({ error: "Nickname and password are required" });
+        }
+
+        const conn = await dbPool.getConnection();
+        try {
+            // проверяем, что ник свободен
+            const [rows] = await conn.query(
+                "SELECT id FROM users WHERE nickname = ? LIMIT 1",
+                [nickname]
+            );
+            if (rows.length > 0) {
+                return res.status(400).json({ error: "Nickname already taken" });
+            }
+
+            const userId = generateUserId();
+            const passwordHash = await bcrypt.hash(password, 10);
+
+            await conn.query(
+                "INSERT INTO users (user_id, nickname, password_hash) VALUES (?, ?, ?)",
+                [userId, nickname, passwordHash]
+            );
+
+            return res.json({
+                user: {
+                    nickname,
+                    id: userId
+                }
+            });
+        } finally {
+            conn.release();
+        }
+    } catch (err) {
+        console.error("Register error:", err);
+        return res.status(500).json({ error: "Server error" });
+    }
+});
+
+// === API: вход ===
+app.post("/api/auth/login", async (req, res) => {
+    try {
+        const { nickname, password } = req.body || {};
+
+        if (!nickname || !password) {
+            return res.status(400).json({ error: "Nickname and password are required" });
+        }
+
+        const conn = await dbPool.getConnection();
+        try {
+            const [rows] = await conn.query(
+                "SELECT user_id, password_hash FROM users WHERE nickname = ? LIMIT 1",
+                [nickname]
+            );
+            if (rows.length === 0) {
+                return res.status(400).json({ error: "User not found" });
+            }
+
+            const row = rows[0];
+            const ok = await bcrypt.compare(password, row.password_hash);
+            if (!ok) {
+                return res.status(400).json({ error: "Invalid password" });
+            }
+
+            return res.json({
+                user: {
+                    nickname,
+                    id: row.user_id
+                }
+            });
+        } finally {
+            conn.release();
+        }
+    } catch (err) {
+        console.error("Login error:", err);
+        return res.status(500).json({ error: "Server error" });
+    }
 });
 
 server.listen(PORT, HOST, (error) => {
