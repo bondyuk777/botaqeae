@@ -191,11 +191,24 @@ export class Player {
             return false;
         };
 
-        // SET USER DATA:
-        setUserData(data = {}) {
+Player.prototype.setUserData = function (data) {
+    data = data || {};
+
     this.userId = data.userId || null;
-    this.name   = data.name   || this.name || "unknown";
-    // остальное как было
+
+    if (data.name) {
+        this.name = String(data.name).slice(0, 32);
+    }
+
+    if (typeof data.skin === "number") {
+        this.skinIndex = data.skin;
+    }
+
+    if (typeof data.moofoll !== "undefined") {
+        this.moofoll = !!data.moofoll;
+    }
+};
+
 
 
                 // VALIDATE NAME:
