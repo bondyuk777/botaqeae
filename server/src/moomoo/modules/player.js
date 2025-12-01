@@ -192,10 +192,11 @@ export class Player {
         };
 
         // SET USER DATA:
-        this.setUserData = function(data) {
-            if (data) {
-                // SET INITIAL NAME:
-                this.name = "unknown";
+        setUserData(data = {}) {
+    this.userId = data.userId || null;
+    this.name   = data.name   || this.name || "unknown";
+    // остальное как было
+
 
                 // VALIDATE NAME:
                 var name = data.name + "";
