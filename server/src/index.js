@@ -169,22 +169,22 @@ app.get("/ping", async (_req, res) => {
 
     let leaderboard = [];
     try {
-        const [rows] = await leaderboardPool.query(
-            `
-            SELECT nickname, kills
-            FROM leaderboard
-            WHERE last_seen >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 3 DAY)
-            ORDER BY kills DESC
-            LIMIT 10
-            `
-        );
+        const [rows] = await leaderboardPool.query(`
+    SELECT user_id, nickname, kills
+    FROM leaderboard
+    WHERE last_seen >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 3 DAY)
+    ORDER BY kills DESC
+    LIMIT 10
+`);
 
-        leaderboard = rows.map(row => ({
-            sid: null,
-            name: row.nickname,
-            score: row.kills,
-            kills: row.kills
-        }));
+leaderboard = rows.map(row => ({
+    sid: row.user_id,         // можно использовать как идентификатор
+    userId: row.user_id,      // явно
+    name: row.nickname,
+    score: row.kills,
+    kills: row.kills
+}));
+
     } catch (err) {
         console.error("[DB] Failed to load leaderboard:", err);
     }
