@@ -79,8 +79,8 @@
 <script src="./libs/jquery-3.2.1.min.js"></script>
 <script src="./libs/jquery-ui.js"></script>
 <script>
-    // ГЛОБАЛ: тут будет храниться топ-3 ников по киллам за 3 дня
-    window.topKillersByName = [];
+    // ГЛОБАЛ: топ-3 по ID, не по нику
+    window.topKillersByUserId = [];
 
     async function updateTopPlayers() {
         try {
@@ -90,14 +90,15 @@
             const data = await res.json();
             const players = (data.players && data.players.list) || [];
 
-            // сортируем по киллам (по убыванию)
+            // сортируем по киллам
             players.sort((a, b) => (b.kills || 0) - (a.kills || 0));
 
-            // берём топ-10
+            // берём топ-10 для таблички
             const top = players.slice(0, 10);
 
-            // ❗ НОВОЕ: запоминаем ТОЛЬКО топ-3 ников глобально
-            window.topKillersByName = top.slice(0, 3).map(p => p.name || '');
+            // ❗ ТУТ ГЛАВНОЕ ИЗМЕНЕНИЕ:
+            // сохраняем топ-3 по userId, а не по name
+            window.topKillersByUserId = top.slice(0, 3).map(p => p.userId || p.sid || '');
 
             const container = document.getElementById('menuLeaderboard');
             if (!container) return;
@@ -118,7 +119,7 @@
 
                 const kills = document.createElement('span');
                 kills.className = 'leaderScores';
-                kills.textContent = p.kills ?? 0; // показываем киллы
+                kills.textContent = p.kills ?? 0;
 
                 row.appendChild(rank);
                 row.appendChild(name);
@@ -131,11 +132,10 @@
         }
     }
 
-    // первый раз при загрузке
     updateTopPlayers();
-    // обновлять каждые 5 секунд
     setInterval(updateTopPlayers, 5000);
 </script>
+
 
 
 
