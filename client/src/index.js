@@ -2224,36 +2224,40 @@ function updateGame() {
     );
     mainContext.fill();
 
-    // ========= НОВОЕ: кубки под ХП, привязанные к аккаунту =========
+    // ========= НОВОЕ: кубки под хп для топ-3 по киллам (за 3 дня) =========
     try {
-        // Кубок только своему персонажу (tmpObj == player)
-        if (tmpObj === player &&
-            typeof window !== "undefined" &&
-            typeof window.currentUserTrophyRank === "number") {
+        if (typeof window !== "undefined" &&
+            Array.isArray(window.topKillersByName) &&
+            tmpObj.name) {
 
-            var rankIndex = window.currentUserTrophyRank;
-            var trophySymbol =
-                rankIndex === 0 ? "🏆" :
-                rankIndex === 1 ? "🥈" :
-                "🥉";
+            var topNames = window.topKillersByName;
+            // index: 0 -> топ1, 1 -> топ2, 2 -> топ3
+            var rankIndex = topNames.indexOf(tmpObj.name);
 
-            // Y-координата чуть ниже полоски хп
-            var trophyY = (tmpObj.y - yOffset + tmpObj.scale) + config.nameY + 24;
+            if (rankIndex !== -1 && rankIndex < 3) {
+                var trophySymbol =
+                    rankIndex === 0 ? "🏆" :   // золото
+                    rankIndex === 1 ? "🥈" :   // серебро
+                    "🥉";                      // бронза
 
-            mainContext.font = "26px Hammersmith One";
-            mainContext.textBaseline = "middle";
-            mainContext.textAlign = "center";
+                // Y-координата чуть ниже полоски хп
+                var trophyY = (tmpObj.y - yOffset + tmpObj.scale) + config.nameY + 24;
 
-            // обводка
-            mainContext.lineWidth = 6;
-            mainContext.strokeText(trophySymbol, tmpObj.x - xOffset, trophyY);
+                mainContext.font = "26px Hammersmith One";
+                mainContext.textBaseline = "middle";
+                mainContext.textAlign = "center";
 
-            // сам значок
-            mainContext.fillStyle = "#fff";
-            mainContext.fillText(trophySymbol, tmpObj.x - xOffset, trophyY);
+                // обводка
+                mainContext.lineWidth = 6;
+                mainContext.strokeText(trophySymbol, tmpObj.x - xOffset, trophyY);
+
+                // сам значок
+                mainContext.fillStyle = "#fff";
+                mainContext.fillText(trophySymbol, tmpObj.x - xOffset, trophyY);
+            }
         }
     } catch (e) {
-        // чтобы игра не крашилась, если что-то пошло не так
+        // чтобы игра не крашилась, если чего-то вдруг нет
         // console.error(e);
     }
     // ========= КОНЕЦ НОВОГО КУСКА =========
