@@ -40,21 +40,67 @@ function generateUserId() {
     return `MM-${part}-${part2}`;
 }
 
-// Создание таблицы users, если её нет
+// Создание таблиц users и leaderboard, если их нет
 async function initDb() {
-    const sql = `
-        CREATE TABLE IF NOT EXISTS users (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            user_id VARCHAR(32) NOT NULL UNIQUE,
-            nickname VARCHAR(32) NOT NULL UNIQUE,
-            password_hash VARCHAR(255) NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `;
     const conn = await dbPool.getConnection();
+
     try {
-        await conn.query(sql);
+        // ----- users -----
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id VARCHAR(32) NOT NULL UNIQUE,
+                nickname VARCHAR(32) NOT NULL UNIQUE,
+                password_hash VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
         console.log("DB: users table is ready");
+
+        // ----- leaderboard (старый формат, без user_id) -----
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS leaderboard (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                nickname VARCHAR(32) NOT NULL,
+                kills INT NOT NULL DEFAULT 0,
+                last_seen TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY nickname_unique (nickname)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
+        console.log("DB: leaderboard base table is ready");
+
+        // ----- добавляем user_id в leaderboard, если его ещё нет -----
+        try {
+            await conn.query(`
+                ALTER TABLE leaderboard
+                ADD COLUMN user_id VARCHAR(32) NULL AFTER id;
+            `);
+            console.log("DB: user_id column added to leaderboard");
+        } catch (err) {
+            // колонка уже есть
+            if (err.code === "ER_DUP_FIELDNAME") {
+                console.log("DB: user_id column already exists in leaderboard");
+            } else {
+                console.error("DB: failed to add user_id column:", err);
+            }
+        }
+
+        // уникальный индекс по user_id (если нет)
+        try {
+            await conn.query(`
+                ALTER TABLE leaderboard
+                ADD UNIQUE KEY user_id_unique (user_id);
+            `);
+            console.log("DB: user_id_unique index added to leaderboard");
+        } catch (err) {
+            if (err.code === "ER_DUP_KEYNAME") {
+                console.log("DB: user_id_unique index already exists");
+            } else {
+                console.error("DB: failed to add user_id_unique index:", err);
+            }
+        }
+
     } catch (err) {
         console.error("DB init error:", err);
     } finally {
