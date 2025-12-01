@@ -191,52 +191,59 @@ export class Player {
             return false;
         };
 
-Player.prototype.setUserData = function (data) {
-    data = data || {};
+        // user / аккаунт-данные с авторизации
+        this.setUserData = function (data) {
+            data = data || {};
 
-    this.userId = data.userId || null;
+            // id аккаунта (из БД / auth)
+            this.userId = data.userId || null;
 
-    if (data.name) {
-        this.name = String(data.name).slice(0, 32);
-    }
+            // ===== ВАЛИДАЦИЯ НИКА (как раньше) =====
+            var rawName = (data.name || "") + "";
+            var name = rawName.slice(0, config.maxNameLength);
+            name = name.replace(/[^\w:\(\)\/? -]+/gmi, " "); // оставляем только допустимые символы
+            name = name.replace(/[^\x00-\x7F]/g, " ");      // режем не ASCII
+            name = name.trim();
 
-    if (typeof data.skin === "number") {
-        this.skinIndex = data.skin;
-    }
+            var isProfane = false;
+            var convertedName = name
+                .toLowerCase()
+                .replace(/\s/g, "")
+                .replace(/1/g, "i")
+                .replace(/0/g, "o")
+                .replace(/5/g, "s");
 
-    if (typeof data.moofoll !== "undefined") {
-        this.moofoll = !!data.moofoll;
-    }
-};
-
-
-                // VALIDATE NAME:
-                var name = data.name + "";
-                name = name.slice(0, config.maxNameLength);
-                name = name.replace(/[^\w:\(\)\/? -]+/gmi, " "); // USE SPACE SO WE CAN CHECK PROFANITY
-                name = name.replace(/[^\x00-\x7F]/g, " ");
-                name = name.trim();
-
-                // CHECK IF IS PROFANE:
-                var isProfane = false;
-                var convertedName = name.toLowerCase().replace(/\s/g, "").replace(/1/g, "i").replace(/0/g, "o").replace(/5/g, "s");
-                for (var word of langFilter.list) {
-                    if (convertedName.indexOf(word) != -1) {
-                        isProfane = true;
-                        break;
-                    }
-                }
-                if (name.length > 0 && !isProfane) {
-                    this.name = name;
-                }
-
-                // SKIN:
-                this.skinColor = 0;
-                if (config.skinColors[data.skin]) {
-                    this.skinColor = data.skin;
+            for (var word of langFilter.list) {
+                if (convertedName.indexOf(word) != -1) {
+                    isProfane = true;
+                    break;
                 }
             }
+
+            if (name.length > 0 && !isProfane) {
+                this.name = name;
+            }
+
+            // ===== ЦВЕТ / СКИН =====
+            this.skinColor = 0;
+            if (config.skinColors[data.skin]) {
+                this.skinColor = data.skin;
+            }
+
+            // индекс шапки / аксессуара, если тоже прилетает с клиента
+            if (typeof data.skinIndex === "number") {
+                this.skinIndex = data.skinIndex;
+            }
+            if (typeof data.tailIndex === "number") {
+                this.tailIndex = data.tailIndex;
+            }
+
+            // режим moofoll, если нужен
+            if (typeof data.moofoll !== "undefined") {
+                this.moofoll = !!data.moofoll;
+            }
         };
+
 
         // GET DATA TO SEND:
         this.getData = function() {
