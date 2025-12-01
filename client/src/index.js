@@ -1733,11 +1733,15 @@ function enterGame() {
     if (!inGame && socketReady()) {
         inGame = true;
         showLoadingText("Loading...");
-        io.send("M", {
-            name: nameInput.value,
-            moofoll: moofoll,
-            skin: skinColor
-        });
+        // допустим, после логина ты где-то сохранил юзера:
+const mmUser = JSON.parse(localStorage.getItem("mmUser") || "null");
+
+io.send("M", {
+    name: name.value,
+    moofoll: moofoll ? 1 : 0,
+    skin: skinIndex,
+    userId: mmUser ? mmUser.id : null   // <-- айди аккаунта
+});
     }
 }
 
