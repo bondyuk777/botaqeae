@@ -87,8 +87,8 @@ const SERVER_METADATA = {
     region: process.env.SERVER_REGION ?? "global"
 };
 
-// === MySQL пул для лидерборда ===
-const dbPool = mysql.createPool({
+// === MySQL пул для ЛИДЕРБОРДА (отдельно от пулов авторизации) ===
+const leaderboardPool = mysql.createPool({
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
@@ -102,7 +102,7 @@ const dbPool = mysql.createPool({
 // создаём таблицу, если её ещё нет
 async function initLeaderboardTable() {
     try {
-        const conn = await dbPool.getConnection();
+        const conn = await leaderboardPool.getConnection();
         await conn.query(`
             CREATE TABLE IF NOT EXISTS leaderboard (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -135,9 +135,9 @@ async function savePlayerToLeaderboard(player) {
         if (!player || !player.name) return;
 
         const kills = player.kills ?? 0;
-        if (kills <= 0) return; // нулевые нам не нужны
+        if (kills <= 0) return;
 
-        await dbPool.query(
+        await leaderboardPool.query(
             `
             INSERT INTO leaderboard (nickname, kills)
             VALUES (?, ?)
@@ -161,7 +161,7 @@ app.get("/ping", async (_req, res) => {
 
     let leaderboard = [];
     try {
-        const [rows] = await dbPool.query(
+        const [rows] = await leaderboardPool.query(
             `
             SELECT nickname, kills
             FROM leaderboard
@@ -200,6 +200,7 @@ app.get("/ping", async (_req, res) => {
         }
     });
 });
+
 
 
 app.get("/play", (req, res) => {
