@@ -180,14 +180,31 @@ const game = new Game;
 
 async function savePlayerToLeaderboard(player) {
     try {
-        // без player или без userId — ничего не сохраняем
-        if (!player || !player.userId) return;
+        // ЛОГ — чтобы понять, что вообще прилетает
+        console.log("[LB] savePlayerToLeaderboard call", {
+            hasPlayer: !!player,
+            sid: player && player.sid,
+            userId: player && player.userId,
+            name: player && player.name,
+            kills: player && player.kills
+        });
 
-        const kills = player.kills ?? 0;
-        if (kills <= 0) return;
+        // без player или без userId — ничего не сохраняем
+        if (!player || !player.userId) {
+            console.log("[LB] skip: no player or no userId");
+            return;
+        }
+
+        // безопасно приводим kills к числу
+        const kills = Number.isFinite(player.kills) ? player.kills : 0;
+        // ВАЖНО: УБИРАЕМ проверку kills <= 0,
+        // чтобы хотя бы строка в таблице создавалась
+        // if (kills <= 0) return;
 
         const userId = String(player.userId).slice(0, 32);
         const nickname = (player.name ? String(player.name) : "Unknown").slice(0, 32);
+
+        console.log("[LB] saving to DB", { userId, nickname, kills });
 
         await leaderboardPool.query(
             `
@@ -200,10 +217,13 @@ async function savePlayerToLeaderboard(player) {
             `,
             [userId, nickname, kills]
         );
+
+        console.log("[LB] save OK");
     } catch (err) {
         console.error("[DB] Failed to save player leaderboard row", err);
     }
 }
+
 
 
 app.get("/", (req, res) => {
@@ -768,9 +788,17 @@ wss.on("connection", async (socket, req) => {
 
         colimit.down(addr);
 
+        // ЛОГ при выходе игрока
+        console.log("[WS] close", {
+            reason,
+            sid: player && player.sid,
+            userId: player && player.userId,
+            name: player && player.name,
+            kills: player && player.kills
+        });
+
         // сохраняем статистику игрока в БД
         await savePlayerToLeaderboard(player);
-
         if (player.team) {
 
             if (player.is_owner) {
