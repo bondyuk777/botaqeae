@@ -3,7 +3,6 @@ import path from "node:path";
 import fs from "node:fs";
 import { WebSocketServer } from "ws";
 import { createServer } from "node:http";
-import mysql from "mysql2/promise";
 import bcrypt from "bcrypt";
 import { decode, encode } from "msgpack-lite";
 import { Game } from "./moomoo/server.js";
