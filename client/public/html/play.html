@@ -96,25 +96,8 @@
             // берём топ-10
             const top = players.slice(0, 10);
 
-            // --- НОВОЕ: считаем ранг текущего аккаунта ---
-            window.currentUserTrophyRank = null;
-            try {
-                const stored = localStorage.getItem("mmUser");
-                if (stored) {
-                    const mmUser = JSON.parse(stored);
-                    const myId = mmUser && mmUser.id;
-                    if (myId) {
-                        const top3 = top.slice(0, 3);
-                        const idx = top3.findIndex(p => p.userId === myId);
-                        if (idx !== -1) {
-                            window.currentUserTrophyRank = idx; // 0,1,2
-                        }
-                    }
-                }
-            } catch (e) {
-                console.error("Failed to compute trophy rank", e);
-            }
-            // --- КОНЕЦ НОВОГО ---
+            // ❗ НОВОЕ: запоминаем ТОЛЬКО топ-3 ников глобально
+            window.topKillersByName = top.slice(0, 3).map(p => p.name || '');
 
             const container = document.getElementById('menuLeaderboard');
             if (!container) return;
@@ -135,7 +118,7 @@
 
                 const kills = document.createElement('span');
                 kills.className = 'leaderScores';
-                kills.textContent = p.kills ?? 0;
+                kills.textContent = p.kills ?? 0; // показываем киллы
 
                 row.appendChild(rank);
                 row.appendChild(name);
@@ -148,9 +131,12 @@
         }
     }
 
+    // первый раз при загрузке
     updateTopPlayers();
+    // обновлять каждые 5 секунд
     setInterval(updateTopPlayers, 5000);
 </script>
+
 
 
 <div id="errorNotification" class="menuCard" style="display:none">
