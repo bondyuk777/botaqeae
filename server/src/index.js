@@ -731,7 +731,7 @@ wss.on("connection", async (socket, req) => {
 
     });
 
-
+});
 // === API: регистрация ===
 app.post("/api/auth/register", async (req, res) => {
     try {
