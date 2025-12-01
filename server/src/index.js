@@ -15,6 +15,7 @@ import { filter_chat } from "./moomoo/libs/filterchat.js";
 import { config } from "./moomoo/config.js";
 import { ConnectionLimit } from "./moomoo/libs/limit.js";
 import { fileURLToPath } from "node:url";
+import mysql from "mysql2/promise";
 
 const app = e();
 
@@ -87,6 +88,41 @@ const SERVER_METADATA = {
     region: process.env.SERVER_REGION ?? "global"
 };
 
+// === MySQL пул для лидерборда ===
+const dbPool = mysql.createPool({
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306,
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
+});
+
+// создаём таблицу, если её ещё нет
+async function initLeaderboardTable() {
+    try {
+        const conn = await dbPool.getConnection();
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS leaderboard (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                nickname VARCHAR(32) NOT NULL,
+                kills INT NOT NULL DEFAULT 0,
+                last_seen TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY nickname_unique (nickname)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
+        conn.release();
+        console.log("[DB] leaderboard table ready");
+    } catch (err) {
+        console.error("[DB] Failed to init leaderboard table", err);
+    }
+}
+
+initLeaderboardTable().catch(err => console.error("[DB] init error:", err));
+
 const POINTS_RESOURCE_INDEX = config.resourceTypes ? config.resourceTypes.indexOf("points") : -1;
 
 if (!fs.existsSync(INDEX)) {
@@ -95,12 +131,57 @@ if (!fs.existsSync(INDEX)) {
 
 const game = new Game;
 
+async function savePlayerToLeaderboard(player) {
+    try {
+        if (!player || !player.name) return;
+
+        const kills = player.kills ?? 0;
+        if (kills <= 0) return; // нулевые нам не нужны
+
+        await dbPool.query(
+            `
+            INSERT INTO leaderboard (nickname, kills)
+            VALUES (?, ?)
+            ON DUPLICATE KEY UPDATE
+                kills = GREATEST(kills, VALUES(kills)),
+                last_seen = CURRENT_TIMESTAMP
+            `,
+            [player.name, kills]
+        );
+    } catch (err) {
+        console.error("[DB] Failed to save player leaderboard row", err);
+    }
+}
+
 app.get("/", (req, res) => {
     res.sendFile(INDEX)
 });
 
-app.get("/ping", (_req, res) => {
+app.get("/ping", async (_req, res) => {
     const activePlayers = game.players.filter(player => player.alive);
+
+    let leaderboard = [];
+    try {
+        const [rows] = await dbPool.query(
+            `
+            SELECT nickname, kills
+            FROM leaderboard
+            WHERE last_seen >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 3 DAY)
+            ORDER BY kills DESC
+            LIMIT 10
+            `
+        );
+
+        leaderboard = rows.map(row => ({
+            sid: null,
+            name: row.nickname,
+            score: row.kills,
+            kills: row.kills
+        }));
+    } catch (err) {
+        console.error("[DB] Failed to load leaderboard:", err);
+    }
+
     res.json({
         status: "ok",
         timestamp: new Date().toISOString(),
@@ -116,15 +197,11 @@ app.get("/ping", (_req, res) => {
         players: {
             totalConnected: game.players.length,
             activeCount: activePlayers.length,
-            list: activePlayers.map(player => ({
-                sid: player.sid,
-                name: player.name,
-                score: player.points,
-                kills: player.kills
-            }))
+            list: leaderboard
         }
     });
 });
+
 
 app.get("/play", (req, res) => {
     res.sendFile(INDEX);
@@ -633,9 +710,12 @@ wss.on("connection", async (socket, req) => {
 
     });
 
-    socket.on("close", reason => {
+    socket.on("close", async reason => {
 
         colimit.down(addr);
+
+        // сохраняем статистику игрока в БД
+        await savePlayerToLeaderboard(player);
 
         if (player.team) {
 
@@ -651,7 +731,6 @@ wss.on("connection", async (socket, req) => {
 
     });
 
-});
 
 // === API: регистрация ===
 app.post("/api/auth/register", async (req, res) => {
