@@ -79,6 +79,9 @@
 <script src="./libs/jquery-3.2.1.min.js"></script>
 <script src="./libs/jquery-ui.js"></script>
 <script>
+    // ГЛОБАЛ: тут будет храниться топ-3 ников по киллам за 3 дня
+    window.topKillersByName = [];
+
     async function updateTopPlayers() {
         try {
             const res = await fetch('/ping', { cache: 'no-store' });
@@ -92,6 +95,9 @@
 
             // берём топ-10
             const top = players.slice(0, 10);
+
+            // ❗ НОВОЕ: запоминаем ТОЛЬКО топ-3 ников глобально
+            window.topKillersByName = top.slice(0, 3).map(p => p.name || '');
 
             const container = document.getElementById('menuLeaderboard');
             if (!container) return;
