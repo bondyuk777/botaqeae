@@ -2179,14 +2179,65 @@ function updateGame() {
                     }
                     if (tmpObj.health > 0) {
 
-                        mainContext.fillStyle = darkOutlineColor;
-                        mainContext.roundRect(tmpObj.x - xOffset - config.healthBarWidth - config.healthBarPad, (tmpObj.y - yOffset + tmpObj.scale) + config.nameY, (config.healthBarWidth * 2) + (config.healthBarPad * 2), 17, 8);
-                        mainContext.fill();
+    mainContext.fillStyle = darkOutlineColor;
+    mainContext.roundRect(
+        tmpObj.x - xOffset - config.healthBarWidth - config.healthBarPad,
+        (tmpObj.y - yOffset + tmpObj.scale) + config.nameY,
+        (config.healthBarWidth * 2) + (config.healthBarPad * 2),
+        17,
+        8
+    );
+    mainContext.fill();
 
-                        mainContext.fillStyle = (tmpObj == player || (tmpObj.team && tmpObj.team == player.team)) ? "#8ecc51" : "#cc5151";
-                        mainContext.roundRect(tmpObj.x - xOffset - config.healthBarWidth, (tmpObj.y - yOffset + tmpObj.scale) + config.nameY + config.healthBarPad, ((config.healthBarWidth * 2) * (tmpObj.health / tmpObj.maxHealth)), 17 - config.healthBarPad * 2, 7);
-                        mainContext.fill();
-                    }
+    mainContext.fillStyle = (tmpObj == player || (tmpObj.team && tmpObj.team == player.team)) ? "#8ecc51" : "#cc5151";
+    mainContext.roundRect(
+        tmpObj.x - xOffset - config.healthBarWidth,
+        (tmpObj.y - yOffset + tmpObj.scale) + config.nameY + config.healthBarPad,
+        ((config.healthBarWidth * 2) * (tmpObj.health / tmpObj.maxHealth)),
+        17 - config.healthBarPad * 2,
+        7
+    );
+    mainContext.fill();
+
+    // ========= НОВОЕ: кубки под хп для топ-3 по киллам (за 3 дня) =========
+    try {
+        if (typeof window !== "undefined" &&
+            Array.isArray(window.topKillersByName) &&
+            tmpObj.name) {
+
+            var topNames = window.topKillersByName;
+            // index: 0 -> топ1, 1 -> топ2, 2 -> топ3
+            var rankIndex = topNames.indexOf(tmpObj.name);
+
+            if (rankIndex !== -1 && rankIndex < 3) {
+                var trophySymbol =
+                    rankIndex === 0 ? "🏆" :   // золото
+                    rankIndex === 1 ? "🥈" :   // серебро
+                    "🥉";                      // бронза
+
+                // Y-координата чуть ниже полоски хп
+                var trophyY = (tmpObj.y - yOffset + tmpObj.scale) + config.nameY + 24;
+
+                mainContext.font = "26px Hammersmith One";
+                mainContext.textBaseline = "middle";
+                mainContext.textAlign = "center";
+
+                // обводка
+                mainContext.lineWidth = 6;
+                mainContext.strokeText(trophySymbol, tmpObj.x - xOffset, trophyY);
+
+                // сам значок
+                mainContext.fillStyle = "#fff";
+                mainContext.fillText(trophySymbol, tmpObj.x - xOffset, trophyY);
+            }
+        }
+    } catch (e) {
+        // чтобы игра не крашилась, если чего-то вдруг нет
+        // console.error(e);
+    }
+    // ========= КОНЕЦ НОВОГО КУСКА =========
+}
+
                 }
             }
         }
