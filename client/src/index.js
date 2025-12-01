@@ -1733,7 +1733,7 @@ function enterGame() {
     if (!inGame && socketReady()) {
         inGame = true;
         showLoadingText("Loading...");
-        const mmUser = JSON.parse(localStorage.getItem("mmUser") || "Unknown");
+        const mmUser = JSON.parse(localStorage.getItem("mmUser") || "null");
 
         io.send("M", {
             name: name.value,
