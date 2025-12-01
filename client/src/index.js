@@ -2181,7 +2181,7 @@ function updateGame() {
                         mainContext.fillStyle = "#fff";
                         mainContext.fillText(statsText, tmpObj.x - xOffset, statsY);
                     }
-                    if (tmpObj.health > 0) {
+ if (tmpObj.health > 0) {
 
     mainContext.fillStyle = darkOutlineColor;
     mainContext.roundRect(
@@ -2203,44 +2203,41 @@ function updateGame() {
     );
     mainContext.fill();
 
-    // ========= НОВОЕ: кубки под хп для топ-3 по киллам (за 3 дня) =========
+    // ========= НОВОЕ: кубки под ХП, привязанные к аккаунту =========
     try {
-        if (typeof window !== "undefined" &&
-            Array.isArray(window.topKillersByName) &&
-            tmpObj.name) {
+        // Кубок только своему персонажу (tmpObj == player)
+        if (tmpObj === player &&
+            typeof window !== "undefined" &&
+            typeof window.currentUserTrophyRank === "number") {
 
-            var topNames = window.topKillersByName;
-            // index: 0 -> топ1, 1 -> топ2, 2 -> топ3
-            var rankIndex = topNames.indexOf(tmpObj.name);
+            var rankIndex = window.currentUserTrophyRank;
+            var trophySymbol =
+                rankIndex === 0 ? "🏆" :
+                rankIndex === 1 ? "🥈" :
+                "🥉";
 
-            if (rankIndex !== -1 && rankIndex < 3) {
-                var trophySymbol =
-                    rankIndex === 0 ? "🏆" :   // золото
-                    rankIndex === 1 ? "🥈" :   // серебро
-                    "🥉";                      // бронза
+            // Y-координата чуть ниже полоски хп
+            var trophyY = (tmpObj.y - yOffset + tmpObj.scale) + config.nameY + 24;
 
-                // Y-координата чуть ниже полоски хп
-                var trophyY = (tmpObj.y - yOffset + tmpObj.scale) + config.nameY + 24;
+            mainContext.font = "26px Hammersmith One";
+            mainContext.textBaseline = "middle";
+            mainContext.textAlign = "center";
 
-                mainContext.font = "26px Hammersmith One";
-                mainContext.textBaseline = "middle";
-                mainContext.textAlign = "center";
+            // обводка
+            mainContext.lineWidth = 6;
+            mainContext.strokeText(trophySymbol, tmpObj.x - xOffset, trophyY);
 
-                // обводка
-                mainContext.lineWidth = 6;
-                mainContext.strokeText(trophySymbol, tmpObj.x - xOffset, trophyY);
-
-                // сам значок
-                mainContext.fillStyle = "#fff";
-                mainContext.fillText(trophySymbol, tmpObj.x - xOffset, trophyY);
-            }
+            // сам значок
+            mainContext.fillStyle = "#fff";
+            mainContext.fillText(trophySymbol, tmpObj.x - xOffset, trophyY);
         }
     } catch (e) {
-        // чтобы игра не крашилась, если чего-то вдруг нет
+        // чтобы игра не крашилась, если что-то пошло не так
         // console.error(e);
     }
     // ========= КОНЕЦ НОВОГО КУСКА =========
 }
+
 
                 }
             }
