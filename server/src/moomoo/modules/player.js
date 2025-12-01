@@ -210,7 +210,6 @@ Player.prototype.setUserData = function (data) {
 };
 
 
-
                 // VALIDATE NAME:
                 var name = data.name + "";
                 name = name.slice(0, config.maxNameLength);
