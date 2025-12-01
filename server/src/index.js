@@ -99,18 +99,19 @@ const leaderboardPool = mysql.createPool({
     queueLimit: 0
 });
 
-// создаём таблицу, если её ещё нет
 async function initLeaderboardTable() {
     try {
         const conn = await leaderboardPool.getConnection();
         await conn.query(`
             CREATE TABLE IF NOT EXISTS leaderboard (
                 id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id VARCHAR(32) NOT NULL,
                 nickname VARCHAR(32) NOT NULL,
                 kills INT NOT NULL DEFAULT 0,
                 last_seen TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                     ON UPDATE CURRENT_TIMESTAMP,
-                UNIQUE KEY nickname_unique (nickname)
+                UNIQUE KEY user_id_unique (user_id),
+                INDEX idx_kills (kills DESC)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         `);
         conn.release();
@@ -119,6 +120,7 @@ async function initLeaderboardTable() {
         console.error("[DB] Failed to init leaderboard table", err);
     }
 }
+
 
 initLeaderboardTable().catch(err => console.error("[DB] init error:", err));
 
@@ -132,25 +134,31 @@ const game = new Game;
 
 async function savePlayerToLeaderboard(player) {
     try {
-        if (!player || !player.name) return;
+        // без player или без userId — ничего не сохраняем
+        if (!player || !player.userId) return;
 
         const kills = player.kills ?? 0;
         if (kills <= 0) return;
 
+        const userId = String(player.userId).slice(0, 32);
+        const nickname = (player.name ? String(player.name) : "Unknown").slice(0, 32);
+
         await leaderboardPool.query(
             `
-            INSERT INTO leaderboard (nickname, kills)
-            VALUES (?, ?)
+            INSERT INTO leaderboard (user_id, nickname, kills)
+            VALUES (?, ?, ?)
             ON DUPLICATE KEY UPDATE
-                kills = GREATEST(kills, VALUES(kills)),
+                nickname = VALUES(nickname),
+                kills    = GREATEST(kills, VALUES(kills)),
                 last_seen = CURRENT_TIMESTAMP
             `,
-            [player.name, kills]
+            [userId, nickname, kills]
         );
     } catch (err) {
         console.error("[DB] Failed to save player leaderboard row", err);
     }
 }
+
 
 app.get("/", (req, res) => {
     res.sendFile(INDEX)
