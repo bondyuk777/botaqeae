@@ -1,4 +1,4 @@
-import e from "express";1
+import e from "express";
 import path from "node:path";
 import fs from "node:fs";
 import { WebSocketServer } from "ws";
