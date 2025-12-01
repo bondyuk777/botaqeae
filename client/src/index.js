@@ -1730,19 +1730,40 @@ function selectToBuild(index, wpn) {
 
 function enterGame() {
     saveVal("moo_name", nameInput.value);
+
     if (!inGame && socketReady()) {
         inGame = true;
         showLoadingText("Loading...");
-        const mmUser = JSON.parse(localStorage.getItem("mmUser") || "null");
+
+        // читаем данные аккаунта из локалки
+        let mmUser = null;
+        try {
+            mmUser = JSON.parse(localStorage.getItem("mmUser") || "null");
+        } catch (e) {
+            mmUser = null;
+        }
+
+        // 1) пробуем взять имя из поля
+        let finalName = (nameInput.value || "").trim();
+
+        // 2) если поле пустое, используем ник из аккаунта
+        if (!finalName && mmUser && mmUser.nickname) {
+            finalName = mmUser.nickname;
+        }
+
+        // 3) если вообще ничего нет — ставим дефолт
+        if (!finalName) {
+            finalName = "Unknown";
+        }
 
         io.send("M", {
-            name: name.value,
+            name: finalName,
             moofoll: moofoll ? 1 : 0,
-            // skin тут вообще не нужен, сервер и так поставит дефолт
             userId: mmUser ? mmUser.id : null
         });
     }
 }
+
 
 
 var firstSetup = true;
