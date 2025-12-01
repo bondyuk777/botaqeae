@@ -1733,17 +1733,17 @@ function enterGame() {
     if (!inGame && socketReady()) {
         inGame = true;
         showLoadingText("Loading...");
-        // допустим, после логина ты где-то сохранил юзера:
-const mmUser = JSON.parse(localStorage.getItem("mmUser") || "null");
+        const mmUser = JSON.parse(localStorage.getItem("mmUser") || "null");
 
-io.send("M", {
-    name: name.value,
-    moofoll: moofoll ? 1 : 0,
-    skin: skinIndex,
-    userId: mmUser ? mmUser.id : null   // <-- айди аккаунта
-});
+        io.send("M", {
+            name: name.value,
+            moofoll: moofoll ? 1 : 0,
+            // skin тут вообще не нужен, сервер и так поставит дефолт
+            userId: mmUser ? mmUser.id : null
+        });
     }
 }
+
 
 var firstSetup = true;
 
