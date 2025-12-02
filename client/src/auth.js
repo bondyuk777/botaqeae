@@ -1,9 +1,9 @@
 'use strict';
 
-var AUTH_STORAGE_KEY = "mmio_user";
+var AUTH_STORAGE_KEY = "mmUser";
 var authMode = "login"; // "login" | "register"
 
-// ===== Утилиты =====
+// ===== Г“ГІГЁГ«ГЁГІГ» =====
 function escapeHtml(str) {
     if (str === undefined || str === null) return "";
     return String(str).replace(/[&<>"']/g, function (c) {
@@ -18,12 +18,12 @@ function escapeHtml(str) {
     });
 }
 
-// Правая карточка аккаунта
+// ГЏГ°Г ГўГ Гї ГЄГ Г°ГІГ®Г·ГЄГ  Г ГЄГЄГ ГіГ­ГІГ 
 function getAccountCard() {
     return document.querySelector(".menuColumn.rightColumn .menuCard");
 }
 
-// Кнопки Sign In / Create Account
+// ГЉГ­Г®ГЇГЄГЁ Sign In / Create Account
 function findAuthButtons() {
     var buttons = document.querySelectorAll(".menuColumn.rightColumn .menuButton");
     var signInBtn = null;
@@ -41,13 +41,13 @@ function findAuthButtons() {
     return { signInBtn: signInBtn, createAccountBtn: createAccountBtn };
 }
 
-// span в нижнем infoBox
+// span Гў Г­ГЁГ¦Г­ГҐГ¬ infoBox
 function findAccountStatusSpan() {
     var infoBoxSpan = document.querySelector(".menuColumn.rightColumn .infoBox span");
     return infoBoxSpan || null;
 }
 
-// ===== Отрисовка UI аккаунта =====
+// ===== ГЋГІГ°ГЁГ±Г®ГўГЄГ  UI Г ГЄГЄГ ГіГ­ГІГ  =====
 
 function renderAccountLoggedIn(user) {
     var card = getAccountCard();
@@ -169,7 +169,7 @@ function updateAccountUI(user) {
     }
 }
 
-// ===== Модальное окно =====
+// ===== ГЊГ®Г¤Г Г«ГјГ­Г®ГҐ Г®ГЄГ­Г® =====
 
 function ensureAuthModal() {
     var modal = document.getElementById("authModal");
@@ -266,7 +266,7 @@ function closeAuth() {
     if (modal) modal.style.display = "none";
 }
 
-// === запрос к серверу и БД ===
+// === Г§Г ГЇГ°Г®Г± ГЄ Г±ГҐГ°ГўГҐГ°Гі ГЁ ГЃГ„ ===
 function onAuthSubmit(e) {
     e.preventDefault();
 
@@ -328,7 +328,7 @@ function onAuthSubmit(e) {
         });
 }
 
-// ===== Восстановление из localStorage =====
+// ===== Г‚Г®Г±Г±ГІГ Г­Г®ГўГ«ГҐГ­ГЁГҐ ГЁГ§ localStorage =====
 
 function restoreUserFromStorage() {
     try {
@@ -349,7 +349,7 @@ function restoreUserFromStorage() {
     }
 }
 
-// ===== Инициализация =====
+// ===== Г€Г­ГЁГ¶ГЁГ Г«ГЁГ§Г Г¶ГЁГї =====
 
 document.addEventListener("DOMContentLoaded", function () {
     restoreUserFromStorage();
@@ -370,3 +370,4 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 });
+
