@@ -2261,7 +2261,7 @@ function updateGame() {
         // console.error(e);
     }
     // ========= КОНЕЦ НОВОГО КУСКА ========
-
+ }
                 }
             }
         }
