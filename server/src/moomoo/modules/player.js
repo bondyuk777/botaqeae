@@ -196,13 +196,10 @@ export class Player {
             data = data || {};
 
             // id аккаунта (из БД / auth)
-            // id аккаунта (из БД / auth)
-// клиент может слать либо userId, либо id — поддерживаем оба варианта
-this.userId =
-        data.userId      // как ты пытался раньше
-        || data.id       // если придёт просто { id: "MM-..." }
-        || (data.user && data.user.id) // если придёт { user: { id: "MM-..." } }
-        || null;
+    // клиент может слать либо userId, либо id — поддерживаем оба варианта
+    this.userId = data.userId || data.id || null;
+
+    this.name = (data.name || "").toString().substr(0, 15);
 
             // ===== ВАЛИДАЦИЯ НИКА (как раньше) =====
             var rawName = (data.name || "") + "";
