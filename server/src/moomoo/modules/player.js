@@ -196,7 +196,9 @@ export class Player {
             data = data || {};
 
             // id аккаунта (из БД / auth)
-            this.userId = data.userId || null;
+            // id аккаунта (из БД / auth)
+// клиент может слать либо userId, либо id — поддерживаем оба варианта
+this.userId = data.userId || data.id || null;
 
             // ===== ВАЛИДАЦИЯ НИКА (как раньше) =====
             var rawName = (data.name || "") + "";
