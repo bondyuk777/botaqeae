@@ -3129,8 +3129,10 @@ function updatePlayers(data) {
             tmpObj.cps = typeof data[i + 13] === "number" ? Math.max(0, Math.round(data[i + 13])) : 0;
             tmpObj.ping = typeof data[i + 14] === "number" ? Math.max(-1, Math.round(data[i + 14])) : -1;
             tmpObj.visible = true;
+            tmpObj.userId = data[i + 15] || null;
+            } else {
         }
-        i += 15;
+        i += 16;
     }
 }
 
