@@ -268,6 +268,7 @@ export class Player {
                 this.tailIndex,
                 this.iconIndex,
                 this.zIndex,
+                 this.userId || null,
                 Number.isFinite(this.clientCps) ? Math.max(0, Math.round(this.clientCps)) : 0,
                 Number.isFinite(this.clientPing) ? Math.max(-1, Math.round(this.clientPing)) : -1
             ];
