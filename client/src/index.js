@@ -1933,6 +1933,15 @@ function updateAge(xp, mxp, age) {
 
 function updateLeaderboard(data) {
     UTILS.removeAllChildren(leaderboardData);
+
+    // === НОВОЕ: сохраняем топ-3 по SID для кубков ===
+    window.topKillersBySid = [];
+    for (var j = 0; j < data.length && window.topKillersBySid.length < 3; j += 3) {
+        // data[j] — это SID игрока в топе
+        window.topKillersBySid.push(data[j]);
+    }
+    // === КОНЕЦ НОВОГО ===
+
     var tmpC = 1;
     for (var i = 0; i < data.length; i += 3) {
         (function (i) {
