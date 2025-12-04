@@ -2233,23 +2233,27 @@ function updateGame() {
     );
     mainContext.fill();
 
-        // ========= КУБКИ ПОД ХП ДЛЯ ТОП-3 =========
-    try {
-        if (typeof window !== "undefined" &&
-            Array.isArray(window.topKillersBySid) &&
-            tmpObj.sid != null) {   // у объекта игрока есть sid
+        // ========= КУБКИ ПОД ХП ДЛЯ ТОП-3 ИЗ МЕНЮ-ТOПА =========
+try {
+    if (typeof window !== "undefined" &&
+        Array.isArray(window.topKillersByUserId) &&
+        window.topKillersByUserId.length > 0) {
 
-            var topSids = window.topKillersBySid;
-            // 0 -> 1 место, 1 -> 2 место, 2 -> 3 место
-            var rankIndex = topSids.indexOf(tmpObj.sid);
+        // ID игрока: сначала userId, если нет – sid
+        var playerId = tmpObj.userId || tmpObj.sid;
+
+        if (playerId != null && playerId !== "") {
+            var topIds = window.topKillersByUserId;
+            // 0 → 1 место, 1 → 2 место, 2 → 3 место
+            var rankIndex = topIds.indexOf(playerId);
 
             if (rankIndex !== -1 && rankIndex < 3) {
                 var trophySymbol =
                     rankIndex === 0 ? "🏆" :
                     rankIndex === 1 ? "🥈" :
-                                       "🥉";
+                                      "🥉";
 
-                // Y чуть ниже HP
+                // Y чуть ниже HP / ника
                 var trophyY = (tmpObj.y - yOffset + tmpObj.scale) + config.nameY + 24;
 
                 mainContext.font = "26px Hammersmith One";
@@ -2265,11 +2269,13 @@ function updateGame() {
                 mainContext.fillText(trophySymbol, tmpObj.x - xOffset, trophyY);
             }
         }
-    } catch (e) {
-        // чтобы игра не крашилась, если чего-то вдруг нет
-        // console.error(e);
     }
-    // ========= КОНЕЦ КУСКА С КУБКАМИ =========
+} catch (e) {
+    // чтобы рендер не падал, если что-то пошло не так
+    // console.error(e);
+}
+// ========= КОНЕЦ КУСКА С КУБКАМИ =========
+
 
  }
                 }
