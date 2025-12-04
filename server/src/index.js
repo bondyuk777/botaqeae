@@ -249,6 +249,7 @@ leaderboard = rows.map(row => ({
     name: row.nickname,
     score: row.kills,
     kills: row.kills
+    cups: row.kills
 }));
 
     } catch (err) {
