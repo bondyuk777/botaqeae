@@ -2233,15 +2233,15 @@ function updateGame() {
     );
     mainContext.fill();
 
-    // ========= НОВОЕ: кубки под хп для топ-3 по ID =========
+        // ========= КУБКИ ПОД ХП ДЛЯ ТОП-3 =========
     try {
         if (typeof window !== "undefined" &&
-            Array.isArray(window.topKillersByUserId) &&
-            tmpObj.userId) {          // <-- у объекта игрока должен быть userId
+            Array.isArray(window.topKillersBySid) &&
+            tmpObj.sid != null) {   // у объекта игрока есть sid
 
-            var topIds = window.topKillersByUserId;
+            var topSids = window.topKillersBySid;
             // 0 -> 1 место, 1 -> 2 место, 2 -> 3 место
-            var rankIndex = topIds.indexOf(tmpObj.userId);
+            var rankIndex = topSids.indexOf(tmpObj.sid);
 
             if (rankIndex !== -1 && rankIndex < 3) {
                 var trophySymbol =
@@ -2249,7 +2249,7 @@ function updateGame() {
                     rankIndex === 1 ? "🥈" :
                                        "🥉";
 
-                // Y координата чуть ниже HP
+                // Y чуть ниже HP
                 var trophyY = (tmpObj.y - yOffset + tmpObj.scale) + config.nameY + 24;
 
                 mainContext.font = "26px Hammersmith One";
@@ -2269,7 +2269,8 @@ function updateGame() {
         // чтобы игра не крашилась, если чего-то вдруг нет
         // console.error(e);
     }
-    // ========= КОНЕЦ НОВОГО КУСКА ========
+    // ========= КОНЕЦ КУСКА С КУБКАМИ =========
+
  }
                 }
             }
