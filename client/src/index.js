@@ -1939,6 +1939,7 @@ function updateLeaderboard(data) {
     for (var j = 0; j < data.length && window.topKillersBySid.length < 3; j += 3) {
         // data[j] — это SID игрока в топе
         window.topKillersBySid.push(data[j]);
+        window.topKillersByUserId = window.topKillersByUserId || [];
     }
     // === КОНЕЦ НОВОГО ===
 
@@ -1957,6 +1958,9 @@ function updateLeaderboard(data) {
                     UTILS.generateElement({
                         class: "leaderScore",
                         text: UTILS.kFormat(data[i + 2]) || "0"
+
+                        // data: [sid1, name1, score1, sid2, name2, score2, ...]
+
                     })
                 ]
             });
